@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -51,6 +52,8 @@ from .views import RecordingProxyView
 
 _LOGGER = logging.getLogger(__name__)
 _STORAGE_INDEX_VERSION = 1
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type SurveillanceConfigEntry = ConfigEntry[SurveillanceRuntime]
 
