@@ -1,0 +1,34 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "camera_online": {
+        "default": "mdi:cctv",
+        "state": {
+          "off": "mdi:cctv-off",
+          "on": "mdi:cctv"
+        }
+      }
+    },
+    "event": {
+      "detection": {
+        "default": "mdi:motion-sensor"
+      }
+    },
+    "image": {
+      "last_event": {
+        "default": "mdi:image-outline"
+      }
+    },
+    "sensor": {
+      "last_detection": {
+        "default": "mdi:clock-outline"
+      },
+      "events_today": {
+        "default": "mdi:motion-sensor"
+      },
+      "recordings_today": {
+        "default": "mdi:video-box"
+      }
+    }
+  }
+}

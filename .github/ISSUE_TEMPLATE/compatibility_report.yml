@@ -1,0 +1,53 @@
+name: Beta compatibility report
+description: Share results from a new NAS, camera, or recording configuration.
+title: "[Compatibility]: "
+labels:
+  - compatibility
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: NAS, DSM, Surveillance Station, and Home Assistant versions
+      placeholder: DS..., DSM ..., SS 9..., HA 2026...
+    validations:
+      required: true
+  - type: input
+    id: cameras
+    attributes:
+      label: Camera vendor, model, count, and codec
+      placeholder: 3× HIKVISION ..., H.264
+    validations:
+      required: true
+  - type: dropdown
+    id: recording
+    attributes:
+      label: Recording modes tested
+      multiple: true
+      options:
+        - Continuous
+        - Motion
+        - Alarm
+        - Analytics
+        - Action rule
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Beta checklist results
+      description: List which steps in docs/BETA_TESTING.md passed or failed.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostic data
+      render: json
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I reviewed the report and removed all private information and media.
+          required: true

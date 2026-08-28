@@ -1,0 +1,108 @@
+{
+  "title": "Synology Surveillance Station",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Surveillance Station",
+        "description": "Use a dedicated Synology account with Surveillance Station camera and recording permissions. Accounts created in Surveillance Station are synchronized to DSM automatically.",
+        "data": {
+          "host": "NAS host or IP address",
+          "port": "DSM HTTPS/HTTP port",
+          "username": "Username",
+          "password": "Password",
+          "use_ssl": "Use HTTPS",
+          "verify_ssl": "Verify TLS certificate"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Update credentials",
+        "description": "Enter the new password for {host}.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Surveillance Station",
+        "data": {
+          "host": "NAS host or IP address",
+          "port": "DSM HTTPS/HTTP port",
+          "username": "Username",
+          "password": "Password",
+          "use_ssl": "Use HTTPS",
+          "verify_ssl": "Verify TLS certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the DiskStation",
+      "invalid_auth": "Authentication failed",
+      "insufficient_permissions": "The account cannot access Surveillance Station",
+      "invalid_host": "Enter only a hostname or IP address",
+      "unsupported": "This Surveillance Station version does not expose all required APIs",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This Surveillance Station is already configured",
+      "unique_id_mismatch": "The reconfigured server is a different DiskStation",
+      "reauth_successful": "Credentials updated",
+      "reconfigure_successful": "Configuration updated"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cameras and event polling",
+        "description": "Home Assistant reads new event recordings directly from Surveillance Station. The NAS does not need inbound access to Home Assistant.",
+        "data": {
+          "camera_ids": "Cameras to include",
+          "polling_enabled": "Poll recording events through the API",
+          "poll_interval": "Polling interval in seconds"
+        }
+      }
+    },
+    "error": {
+      "select_camera": "Select at least one available camera"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "camera_online": {
+        "name": "Connection"
+      }
+    },
+    "event": {
+      "detection": {
+        "name": "Activity",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "event_recording": "Recording started",
+              "motion": "Motion",
+              "alarm": "Alarm",
+              "custom": "Custom recording",
+              "external": "External recording",
+              "analytics": "Analytics",
+              "action_rule": "Action rule"
+            }
+          }
+        }
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Last event snapshot"
+      }
+    },
+    "sensor": {
+      "last_detection": {
+        "name": "Last event"
+      },
+      "events_today": {
+        "name": "Events today"
+      },
+      "recordings_today": {
+        "name": "Recordings today"
+      }
+    }
+  }
+}

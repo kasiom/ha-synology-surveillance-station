@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible integration failure.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thank you for testing the beta. Remove passwords, session IDs, IP addresses,
+        recording paths, snapshots, and video before posting.
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: 0.6.0
+    validations:
+      required: true
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Home Assistant version and installation type
+      placeholder: 2026.8.3, Home Assistant OS
+    validations:
+      required: true
+  - type: input
+    id: surveillance_version
+    attributes:
+      label: NAS model, DSM version, and Surveillance Station version
+      placeholder: DS..., DSM ..., Surveillance Station 9...
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the expected result, actual result, and exact reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: text
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostic data
+      description: Attach or paste diagnostics after reviewing them for private information.
+      render: json
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I use the newest published beta.
+          required: true
+        - label: I removed credentials, private addresses, images, recordings, and session IDs.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

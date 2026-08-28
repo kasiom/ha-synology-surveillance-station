@@ -1,0 +1,108 @@
+{
+  "title": "Synology Surveillance Station",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Připojení k Surveillance Station",
+        "description": "Použijte samostatný účet Synology s oprávněním ke kamerám a záznamům Surveillance Station. Účet vytvořený v Surveillance Station se do DSM synchronizuje automaticky.",
+        "data": {
+          "host": "Adresa nebo název NAS",
+          "port": "Port DSM HTTPS/HTTP",
+          "username": "Uživatelské jméno",
+          "password": "Heslo",
+          "use_ssl": "Použít HTTPS",
+          "verify_ssl": "Ověřovat TLS certifikát"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Aktualizace přihlášení",
+        "description": "Zadejte nové heslo pro {host}.",
+        "data": {
+          "password": "Heslo"
+        }
+      },
+      "reconfigure": {
+        "title": "Změna nastavení Surveillance Station",
+        "data": {
+          "host": "Adresa nebo název NAS",
+          "port": "Port DSM HTTPS/HTTP",
+          "username": "Uživatelské jméno",
+          "password": "Heslo",
+          "use_ssl": "Použít HTTPS",
+          "verify_ssl": "Ověřovat TLS certifikát"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "K zařízení DiskStation se nelze připojit",
+      "invalid_auth": "Přihlášení selhalo",
+      "insufficient_permissions": "Účet nemá přístup k Surveillance Station",
+      "invalid_host": "Zadejte pouze název serveru nebo IP adresu",
+      "unsupported": "Tato verze Surveillance Station neposkytuje všechna potřebná API",
+      "unknown": "Neočekávaná chyba"
+    },
+    "abort": {
+      "already_configured": "Tato Surveillance Station je již nastavena",
+      "unique_id_mismatch": "Nové údaje směřují na jiné zařízení DiskStation",
+      "reauth_successful": "Přihlašovací údaje byly aktualizovány",
+      "reconfigure_successful": "Nastavení bylo aktualizováno"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Kamery a načítání událostí",
+        "description": "Home Assistant načítá nové záznamy událostí přímo ze Surveillance Station. NAS nemusí mít přístup do sítě Home Assistantu.",
+        "data": {
+          "camera_ids": "Zahrnuté kamery",
+          "polling_enabled": "Načítat události záznamů přes API",
+          "poll_interval": "Interval dotazování v sekundách"
+        }
+      }
+    },
+    "error": {
+      "select_camera": "Vyberte alespoň jednu dostupnou kameru"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "camera_online": {
+        "name": "Připojení"
+      }
+    },
+    "event": {
+      "detection": {
+        "name": "Aktivita",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "event_recording": "Spuštění záznamu",
+              "motion": "Pohyb",
+              "alarm": "Alarm",
+              "custom": "Vlastní záznam",
+              "external": "Externí záznam",
+              "analytics": "Analytika",
+              "action_rule": "Pravidlo akce"
+            }
+          }
+        }
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Snímek poslední události"
+      }
+    },
+    "sensor": {
+      "last_detection": {
+        "name": "Poslední událost"
+      },
+      "events_today": {
+        "name": "Události dnes"
+      },
+      "recordings_today": {
+        "name": "Dnešní záznamy"
+      }
+    }
+  }
+}
