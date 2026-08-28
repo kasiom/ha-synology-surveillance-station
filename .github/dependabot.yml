@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    versioning-strategy: increase-if-necessary
+    ignore:
+      - dependency-name: pytest-homeassistant-custom-component
     groups:
       test-dependencies:
         patterns:

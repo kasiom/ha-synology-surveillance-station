@@ -1,2 +1,3 @@
 -r requirements_test.txt
+# Keep this aligned with the exact supported Home Assistant release.
 pytest-homeassistant-custom-component==0.13.357
