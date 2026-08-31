@@ -560,11 +560,16 @@ class SynologySurveillanceApi:
                     raise SynologyConnectionError(
                         f"{api_name}.{method} returned an oversized response"
                     )
-                body = await response.content.read(_MAX_SNAPSHOT_BYTES + 1)
-                if len(body) > _MAX_SNAPSHOT_BYTES:
-                    raise SynologyConnectionError(
-                        f"{api_name}.{method} returned an oversized response"
-                    )
+                chunks: list[bytes] = []
+                received_bytes = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    received_bytes += len(chunk)
+                    if received_bytes > _MAX_SNAPSHOT_BYTES:
+                        raise SynologyConnectionError(
+                            f"{api_name}.{method} returned an oversized response"
+                        )
+                    chunks.append(chunk)
+                body = b"".join(chunks)
                 content_type = response.headers.get(
                     "Content-Type", "application/octet-stream"
                 )
@@ -575,6 +580,12 @@ class SynologySurveillanceApi:
                 f"{api_name}.{method} returned HTTP {response.status}"
             )
         if content_type.casefold().startswith("image/"):
+            if content_type.casefold().startswith("image/jpeg") and not (
+                body.startswith(b"\xff\xd8") and b"\xff\xd9" in body[-32:]
+            ):
+                raise SynologyConnectionError(
+                    f"{api_name}.{method} returned an incomplete JPEG image"
+                )
             return body, content_type.split(";", 1)[0]
         try:
             payload = json.loads(body)

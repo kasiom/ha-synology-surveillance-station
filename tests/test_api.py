@@ -11,12 +11,14 @@ api_module = load_module("api")
 
 
 class FakeResponse:
-    def __init__(self, payload, *, status=200, headers=None, body=b"") -> None:
+    def __init__(
+        self, payload, *, status=200, headers=None, body=b"", chunks=None
+    ) -> None:
         self.payload = payload
         self.status = status
         self.headers = headers or {"Content-Type": "application/json"}
         self.body = body
-        self.content = FakeContent(body)
+        self.content = FakeContent(body, chunks)
 
     async def __aenter__(self):
         return self
@@ -32,11 +34,22 @@ class FakeResponse:
 
 
 class FakeContent:
-    def __init__(self, body) -> None:
+    def __init__(self, body, chunks=None) -> None:
         self.body = body
+        self.chunks = tuple(chunks) if chunks is not None else None
 
     async def read(self, limit=-1):
+        if self.chunks is not None:
+            return self.chunks[0]
         return self.body if limit < 0 else self.body[:limit]
+
+    async def iter_chunked(self, size):
+        if self.chunks is not None:
+            for chunk in self.chunks:
+                yield chunk
+            return
+        for offset in range(0, len(self.body), size):
+            yield self.body[offset : offset + size]
 
 
 class FakeSession:
@@ -311,6 +324,54 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(api_module.SynologyConnectionError):
             await client.async_get_snapshot(8)
         self.assertEqual(session.calls[0][1]["timeout"].total, 15)
+
+    async def test_snapshot_reads_every_network_chunk(self) -> None:
+        body = b"\xff\xd8" + b"camera-image" * 10_000 + b"\xff\xd9"
+        chunks = [body[:3960], body[3960:65536], body[65536:]]
+        session = FakeSession(
+            [
+                FakeResponse(
+                    {},
+                    headers={"Content-Type": "image/jpeg"},
+                    body=body,
+                    chunks=chunks,
+                )
+            ]
+        )
+        client = api_module.SynologySurveillanceApi(
+            session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+        )
+        client.apis = {
+            "SYNO.SurveillanceStation.Camera": api_module.ApiDescriptor(
+                "SYNO.SurveillanceStation.Camera", "entry.cgi", 1, 9
+            )
+        }
+        client.sid = "sid"
+
+        snapshot, content_type = await client.async_get_snapshot(8)
+
+        self.assertEqual(snapshot, body)
+        self.assertEqual(content_type, "image/jpeg")
+
+    async def test_snapshot_rejects_incomplete_jpeg(self) -> None:
+        body = b"\xff\xd8" + b"truncated"
+        session = FakeSession(
+            [FakeResponse({}, headers={"Content-Type": "image/jpeg"}, body=body)]
+        )
+        client = api_module.SynologySurveillanceApi(
+            session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+        )
+        client.apis = {
+            "SYNO.SurveillanceStation.Camera": api_module.ApiDescriptor(
+                "SYNO.SurveillanceStation.Camera", "entry.cgi", 1, 9
+            )
+        }
+        client.sid = "sid"
+
+        with self.assertRaisesRegex(
+            api_module.SynologyConnectionError, "incomplete JPEG"
+        ):
+            await client.async_get_snapshot(8)
 
     async def test_detection_count_uses_documented_reason_filter(self) -> None:
         session = FakeSession(

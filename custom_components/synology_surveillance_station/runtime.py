@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -116,6 +117,7 @@ class SurveillanceRuntime:
             "restored_events": 0,
             "restored_snapshots": 0,
             "bootstrap_events": 0,
+            "repaired_snapshots": 0,
             "last_save_at": None,
             "last_save_error": None,
             "storage_strategy": "per_camera",
@@ -199,6 +201,24 @@ class SurveillanceRuntime:
                 ),
             }
         )
+
+    def restore_snapshot(
+        self, camera_id: int, snapshot: bytes, snapshot_content_type: str
+    ) -> SurveillanceEvent | None:
+        """Repair missing restored image data without replaying the camera event."""
+        existing = self.last_events.get(camera_id)
+        if existing is None:
+            return None
+        repaired = replace(
+            existing,
+            snapshot=snapshot,
+            snapshot_content_type=snapshot_content_type,
+        )
+        self.last_events[camera_id] = repaired
+        self.persistence_diagnostics["repaired_snapshots"] += 1
+        for listener in tuple(self._state_event_listeners[camera_id]):
+            listener(repaired)
+        return repaired
 
     def enable_polling(self, interval_seconds: int) -> None:
         """Expose polling configuration without publishing NAS details."""

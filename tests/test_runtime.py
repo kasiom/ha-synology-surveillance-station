@@ -271,6 +271,36 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.polling_diagnostics["emitted_events"], 0)
         self.assertEqual(runtime.persistence_diagnostics["bootstrap_events"], 1)
 
+    def test_restore_snapshot_repairs_state_without_replaying_event(self) -> None:
+        camera = models.Camera(camera_id=1, name="One")
+        info = models.SurveillanceInfo(None, "9.3.0", None, 1, 2, None, True)
+        runtime = runtime_module.SurveillanceRuntime(
+            SimpleNamespace(host="nas", port=5001), info, (camera,)
+        )
+        existing = models.SurveillanceEvent(
+            event_id="recording-0:0:30",
+            camera_id=1,
+            camera_name="One",
+            event_type="motion",
+            raw_event_name="Motion detection recording",
+            occurred_at=self.now,
+            received_at=self.now,
+        )
+        runtime.restore_events({1: existing})
+        delivered = []
+        state_updates = []
+        runtime.add_listener(1, delivered.append)
+        runtime.add_state_event_listener(1, state_updates.append)
+
+        repaired = runtime.restore_snapshot(1, b"complete-jpeg", "image/jpeg")
+
+        self.assertIsNotNone(repaired)
+        self.assertEqual(repaired.snapshot, b"complete-jpeg")
+        self.assertEqual(delivered, [])
+        self.assertEqual(state_updates, [repaired])
+        self.assertEqual(runtime.polling_diagnostics["emitted_events"], 0)
+        self.assertEqual(runtime.persistence_diagnostics["repaired_snapshots"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

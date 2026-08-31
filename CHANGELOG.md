@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.2 — complete snapshot transfer
+
+- Read snapshot responses through every network chunk until EOF instead of assuming one
+  `aiohttp` read contains the complete JPEG.
+- Preserve the 8 MiB streaming limit without buffering an unbounded response.
+- Reject incomplete JPEG data before it can replace the last valid event image.
+- Detect incomplete JPEGs persisted by older beta versions and replace them once with a fresh
+  camera snapshot during upgrade, without replaying the camera event.
+- Add regression coverage for a valid JPEG split across multiple network chunks and for a
+  truncated JPEG response, persistence repair, and event-safe snapshot replacement.
+
 ## 0.6.1 — functional Home Assistant image rendering
 
 - Restore the standard authenticated `ImageEntity` proxy URL so the last-event snapshot opens

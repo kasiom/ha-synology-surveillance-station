@@ -74,6 +74,21 @@ def deserialize_last_events(
         ):
             continue
         snapshot = _decode_snapshot(raw.get("snapshot"))
+        snapshot_content_type = (
+            str(raw["snapshot_content_type"])
+            if snapshot is not None and raw.get("snapshot_content_type")
+            else ("image/jpeg" if snapshot is not None else None)
+        )
+        if (
+            snapshot is not None
+            and snapshot_content_type.casefold().startswith("image/jpeg")
+            and not (
+                snapshot.startswith(b"\xff\xd8")
+                and b"\xff\xd9" in snapshot[-32:]
+            )
+        ):
+            snapshot = None
+            snapshot_content_type = None
         recording_id = raw.get("recording_id")
         try:
             recording_id = int(recording_id) if recording_id is not None else None
@@ -96,11 +111,7 @@ def deserialize_last_events(
             occurred_at=occurred_at,
             received_at=received_at,
             snapshot=snapshot,
-            snapshot_content_type=(
-                str(raw["snapshot_content_type"])
-                if snapshot is not None and raw.get("snapshot_content_type")
-                else ("image/jpeg" if snapshot is not None else None)
-            ),
+            snapshot_content_type=snapshot_content_type,
             recording_id=recording_id,
             source_server=(
                 str(raw["source_server"]) if raw.get("source_server") else None

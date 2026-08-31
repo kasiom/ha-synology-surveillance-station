@@ -22,7 +22,7 @@ class PersistenceTests(unittest.TestCase):
             raw_event_name="Detection recording",
             occurred_at=occurred_at,
             received_at=occurred_at,
-            snapshot=b"\xff\xd8\xff\xe0snapshot",
+            snapshot=b"\xff\xd8\xff\xe0snapshot\xff\xd9",
             snapshot_content_type="image/jpeg",
             recording_id=42,
             extra={"detection_verified_by": "CountByCategory"},
@@ -33,6 +33,27 @@ class PersistenceTests(unittest.TestCase):
         )
 
         self.assertEqual(restored[2], event)
+
+    def test_incomplete_jpeg_is_not_restored(self) -> None:
+        occurred_at = datetime(2026, 8, 28, 11, 13, tzinfo=UTC)
+        event = models.SurveillanceEvent(
+            event_id="recording-0:0:44",
+            camera_id=2,
+            camera_name="Camera 2",
+            event_type="event_recording",
+            raw_event_name="Detection recording",
+            occurred_at=occurred_at,
+            received_at=occurred_at,
+            snapshot=b"\xff\xd8truncated",
+            snapshot_content_type="image/jpeg",
+        )
+
+        restored = persistence.deserialize_last_events(
+            persistence.serialize_last_events({2: event}), {2}
+        )[2]
+
+        self.assertIsNone(restored.snapshot)
+        self.assertIsNone(restored.snapshot_content_type)
 
     def test_verified_legacy_generic_event_is_migrated_to_event_recording(self) -> None:
         raw = {

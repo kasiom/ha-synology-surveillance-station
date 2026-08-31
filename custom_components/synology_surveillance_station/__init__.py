@@ -334,7 +334,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry)
         entity_registry = er.async_get(hass)
         for camera in runtime.cameras:
             camera_id = camera.camera_id
-            if camera_id in runtime.last_events:
+            existing_event = runtime.last_events.get(camera_id)
+            if existing_event is not None and existing_event.snapshot is not None:
+                continue
+            if existing_event is not None:
+                if info.allow_snapshot is False:
+                    continue
+                try:
+                    snapshot, snapshot_content_type = await api.async_get_snapshot(
+                        camera_id
+                    )
+                except SynologyApiError:
+                    _LOGGER.debug(
+                        "Could not repair the restored snapshot for camera %s",
+                        camera_id,
+                        exc_info=True,
+                    )
+                    continue
+                if snapshot and runtime.restore_snapshot(
+                    camera_id,
+                    snapshot,
+                    snapshot_content_type or "image/jpeg",
+                ):
+                    restored_camera_ids.add(camera_id)
                 continue
             total_count = runtime.recordings_today.get(camera_id)
             detection_count = detection_counts.get(camera_id)

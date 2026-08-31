@@ -5,7 +5,7 @@ An unofficial public-beta integration that complements Home Assistant's official
 camera status entities, and a Media Source for Surveillance Station recordings.
 
 > [!IMPORTANT]
-> Version `0.6.1` is a public beta. It is stable on the maintainer's three-camera test
+> Version `0.6.2` is a public beta. It is stable on the maintainer's three-camera test
 > installation, but it still needs reports from different Synology models, camera vendors,
 > recording modes, and Surveillance Station 9.x versions. It does not modify recordings or
 > camera configuration.
@@ -31,7 +31,7 @@ integration deliberately does not create another live camera entity.
 
 ## Beta status
 
-Version `0.6.1` is a reliability-focused public beta. The API layer follows Synology's
+Version `0.6.2` is a reliability-focused public beta. The API layer follows Synology's
 documented Web API discovery, authentication, camera, snapshot, and recording endpoints.
 New event recordings are polled by default, so Home Assistant can consume events when the NAS
 is intentionally unable to initiate connections into the automation network.
@@ -47,7 +47,7 @@ Until the beta has broader hardware coverage, install it as a custom HACS reposi
 1. In HACS, open the menu in the upper-right corner and select **Custom repositories**.
 2. Add `https://github.com/kasiom/ha-synology-surveillance-station` as category
    **Integration**.
-3. Find **Synology Surveillance Station**, choose the `v0.6.1` beta release, and download it.
+3. Find **Synology Surveillance Station**, choose the `v0.6.2` beta release, and download it.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration** and select
    **Synology Surveillance Station**.

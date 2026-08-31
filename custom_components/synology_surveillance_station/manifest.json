@@ -13,5 +13,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/kasiom/ha-synology-surveillance-station/issues",
   "requirements": [],
-  "version": "0.6.1"
+  "version": "0.6.2"
 }
