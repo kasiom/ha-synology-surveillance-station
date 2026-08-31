@@ -58,11 +58,6 @@ class SurveillanceLastEventImage(ImageEntity):
         """Avoid presenting a broken image before the first snapshot arrives."""
         return self._image is not None
 
-    @property
-    def entity_picture(self) -> None:
-        """Let HA render the static MDI icon instead of a snapshot thumbnail."""
-        return None
-
     async def async_added_to_hass(self) -> None:
         """Subscribe after HA has assigned an entity ID."""
         await super().async_added_to_hass()

@@ -36,9 +36,15 @@ from custom_components.synology_surveillance_station.const import (  # noqa: E40
     CONF_VERIFY_SSL,
     DOMAIN,
 )
+from custom_components.synology_surveillance_station.image import (  # noqa: E402
+    SurveillanceLastEventImage,
+)
 from custom_components.synology_surveillance_station.models import (  # noqa: E402
     Camera,
     SurveillanceInfo,
+)
+from custom_components.synology_surveillance_station.runtime import (  # noqa: E402
+    SurveillanceRuntime,
 )
 
 USER_INPUT = {
@@ -208,3 +214,18 @@ async def test_setup_entry_requests_reauthentication(hass) -> None:
         await async_setup_entry(hass, entry)
 
     assert entry.entry_id not in hass.data[DOMAIN]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_last_event_image_exposes_standard_proxy_url(hass) -> None:
+    """The frontend needs ImageEntity's authenticated proxy URL to render bytes."""
+    api = SimpleNamespace(host="nas.example.test", port=5001)
+    runtime = SurveillanceRuntime(api, INFO, (CAMERA,))
+    runtime.hub_device_id = "hub-device"
+    image = SurveillanceLastEventImage(hass, runtime, CAMERA)
+    image.entity_id = "image.test_camera_last_event"
+
+    assert image.entity_picture is not None
+    assert image.entity_picture.startswith(
+        "/api/image_proxy/image.test_camera_last_event?token="
+    )

@@ -71,7 +71,7 @@ class TranslationTests(unittest.TestCase):
         self.assertNotIn("webhook", flow_source.casefold())
         self.assertNotIn("webhook", strings_source.casefold())
 
-    def test_image_entity_uses_static_icon_separate_from_snapshot(self) -> None:
+    def test_image_entity_uses_home_assistant_image_proxy(self) -> None:
         image_source = (COMPONENT / "image.py").read_text(encoding="utf-8")
         icons = json.loads((COMPONENT / "icons.json").read_text(encoding="utf-8"))
         verified_icon = "mdi:image-outline"
@@ -80,8 +80,7 @@ class TranslationTests(unittest.TestCase):
             icons["entity"]["image"]["last_event"]["default"], verified_icon
         )
         self.assertNotIn("mdi:image-clock", image_source)
-        self.assertIn("def entity_picture(self) -> None:", image_source)
-        self.assertIn("return None", image_source)
+        self.assertNotIn("def entity_picture", image_source)
         self.assertNotIn("data:image/svg+xml", image_source)
         self.assertIn("return self._image", image_source)
         self.assertNotIn("if event.snapshot is None:\n            return", image_source)

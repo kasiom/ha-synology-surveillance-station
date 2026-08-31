@@ -5,7 +5,7 @@ An unofficial public-beta integration that complements Home Assistant's official
 camera status entities, and a Media Source for Surveillance Station recordings.
 
 > [!IMPORTANT]
-> Version `0.6.0` is a public beta. It is stable on the maintainer's three-camera test
+> Version `0.6.1` is a public beta. It is stable on the maintainer's three-camera test
 > installation, but it still needs reports from different Synology models, camera vendors,
 > recording modes, and Surveillance Station 9.x versions. It does not modify recordings or
 > camera configuration.
@@ -14,8 +14,8 @@ camera status entities, and a Media Source for Surveillance Station recordings.
 
 - one `event` entity per Surveillance Station camera;
 - localized event types, including `event_recording`, `motion`, `alarm`, `analytics`, and action rules;
-- one authenticated last-event `image` entity per camera;
-- automatic snapshot retrieval for each new event recording;
+- one authenticated post-event `image` entity per camera;
+- automatic current-camera snapshot retrieval when each new event is observed;
 - API polling of motion and analytics recordings for isolated camera networks;
 - one useful verified-events-today counter per camera;
 - optional diagnostic last-event timestamp and total-recordings-today sensors;
@@ -31,7 +31,7 @@ integration deliberately does not create another live camera entity.
 
 ## Beta status
 
-Version `0.6.0` is a reliability-focused public beta. The API layer follows Synology's
+Version `0.6.1` is a reliability-focused public beta. The API layer follows Synology's
 documented Web API discovery, authentication, camera, snapshot, and recording endpoints.
 New event recordings are polled by default, so Home Assistant can consume events when the NAS
 is intentionally unable to initiate connections into the automation network.
@@ -47,7 +47,7 @@ Until the beta has broader hardware coverage, install it as a custom HACS reposi
 1. In HACS, open the menu in the upper-right corner and select **Custom repositories**.
 2. Add `https://github.com/kasiom/ha-synology-surveillance-station` as category
    **Integration**.
-3. Find **Synology Surveillance Station**, choose the `v0.6.0` beta release, and download it.
+3. Find **Synology Surveillance Station**, choose the `v0.6.1` beta release, and download it.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration** and select
    **Synology Surveillance Station**.
@@ -75,7 +75,8 @@ The four primary entities on each camera device have distinct jobs:
 - **Camera event** is the automation trigger. Its state is the event timestamp and its
   `event_type` attribute distinguishes motion, alarm, analytics, and the truthful generic
   `event_recording` fallback.
-- **Last event snapshot** supplies the image for a dashboard or notification.
+- **Last event snapshot** supplies the camera image captured when Home Assistant observes the
+  event for a dashboard or notification.
 - **Events today** is a compact dashboard counter of verified event recordings.
 - **Connection** reports whether Surveillance Station currently sees the camera online.
 
@@ -124,6 +125,9 @@ max: 10
   events; `Recording.List` is only a best-effort enrichment source. New continuous
   recordings alone do not trigger events.
 - Existing recordings are seeded after a restart and are never replayed as new events.
+- Because isolated-network polling is used instead of a Synology webhook, the image is a
+  current camera snapshot taken when Home Assistant observes the event, up to one configured
+  polling interval later. It is not a frame extracted from the historical recording.
 - The integration keeps one latest event and a snapshot of at most 2 MiB per camera in a
   separate private storage record, so one damaged camera record cannot affect the others.
   It never writes surveillance images into `/config/www` or the Recorder database.

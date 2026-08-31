@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 — functional Home Assistant image rendering
+
+- Restore the standard authenticated `ImageEntity` proxy URL so the last-event snapshot opens
+  and renders in Home Assistant cards, entity dialogs, and notifications.
+- Keep `mdi:image-outline` as the fallback icon before a snapshot is available; once an image
+  exists, Home Assistant may correctly show its thumbnail instead of the static icon.
+- Document that polling captures the current camera image when Home Assistant observes the
+  event rather than extracting a historical frame from its recording.
+
 ## 0.6.0 — reliability and truthful event correlation
 
 - Prepare the first public beta with HACS metadata, repository ownership and support links,
