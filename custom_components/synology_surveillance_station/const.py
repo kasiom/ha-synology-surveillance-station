@@ -19,7 +19,7 @@ DEFAULT_POLL_INTERVAL: Final = 10
 MIN_POLL_INTERVAL: Final = 5
 MAX_POLL_INTERVAL: Final = 300
 
-PLATFORMS: Final = ("binary_sensor", "event", "image", "sensor")
+PLATFORMS: Final = ("binary_sensor", "camera", "event", "image", "sensor")
 
 API_AUTH: Final = "SYNO.API.Auth"
 API_CAMERA: Final = "SYNO.SurveillanceStation.Camera"

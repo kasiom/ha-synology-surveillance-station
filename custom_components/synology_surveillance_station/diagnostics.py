@@ -40,6 +40,22 @@ async def async_get_config_entry_diagnostics(
                 "model": camera.model,
                 "status": camera.status,
                 "video_codec": camera.video_codec,
+                "profile_stream_numbers": {
+                    "high": camera.high_profile_stream_no,
+                    "medium": camera.medium_profile_stream_no,
+                    "low": camera.low_profile_stream_no,
+                },
+                "streams": [
+                    {
+                        "number": stream.number,
+                        "resolution": stream.resolution,
+                        "fps": stream.fps,
+                        "bitrate_control": stream.bitrate_control,
+                        "constant_bitrate": stream.constant_bitrate,
+                        "quality": stream.quality,
+                    }
+                    for stream in camera.streams
+                ],
             }
             for camera in runtime.cameras
         ],

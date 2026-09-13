@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 — dynamically discovered live streams
+
+- Discover every numbered `stream1` … `streamN` object reported by Surveillance Station
+  instead of assuming a camera has exactly one or two profiles.
+- Add one camera entity per discovered stream with resolution, frame rate, bitrate mode,
+  quality, and high/medium/low role attributes.
+- Use a fresh Synology RTSP path with Home Assistant's TCP transport for the high-quality
+  stream and the isolated MJPEG compatibility path for the low-bandwidth stream; do not
+  persist temporary stream keys or expose them in entity attributes and diagnostics.
+- Keep additional streams visible as snapshot-capable entities when the public Synology API
+  reports their metadata but does not publish a distinct live URL.
+- Reuse live-view paths from the official Synology DSM integration for the same NAS when
+  the dedicated Surveillance Station account lacks Live View access.
+- Proxy low-bandwidth MJPEG natively instead of transcoding it through HLS.
+- Add regression coverage for non-contiguous stream numbers and live-view path parsing.
+
 ## 0.6.2 — complete snapshot transfer
 
 - Read snapshot responses through every network chunk until EOF instead of assuming one

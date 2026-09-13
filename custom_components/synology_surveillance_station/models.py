@@ -31,6 +31,28 @@ class SurveillanceInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class CameraStream:
+    """One numbered video stream reported by Surveillance Station."""
+
+    number: int
+    resolution: str | None = None
+    fps: int | None = None
+    bitrate_control: int | None = None
+    constant_bitrate: int | None = None
+    quality: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CameraLiveViewPaths:
+    """Short-lived live-view paths returned by Surveillance Station."""
+
+    camera_id: int
+    rtsp: str | None = None
+    rtsp_over_http: str | None = None
+    mjpeg_http: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Camera:
     """A camera managed by Surveillance Station."""
 
@@ -42,6 +64,10 @@ class Camera:
     ds_id: int | None = None
     video_codec: int | None = None
     ip_address: str | None = None
+    streams: tuple[CameraStream, ...] = ()
+    high_profile_stream_no: int | None = None
+    medium_profile_stream_no: int | None = None
+    low_profile_stream_no: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

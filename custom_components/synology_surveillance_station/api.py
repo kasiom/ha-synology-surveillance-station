@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -11,7 +12,14 @@ from urllib.parse import urlsplit
 import aiohttp
 
 from .const import API_AUTH, API_CAMERA, API_INFO, API_RECORDING
-from .models import ApiDescriptor, Camera, Recording, SurveillanceInfo
+from .models import (
+    ApiDescriptor,
+    Camera,
+    CameraLiveViewPaths,
+    CameraStream,
+    Recording,
+    SurveillanceInfo,
+)
 
 _SESSION_ERROR_CODES = {106, 107}
 _AUTH_ERROR_CODES = {400, 401, 402, 403, 404, 406, 407}
@@ -254,6 +262,25 @@ class SynologySurveillanceApi:
             camera_id = _as_int(_first(raw, "id", "cameraId"))
             if camera_id is None:
                 continue
+            streams: list[CameraStream] = []
+            for key, value in raw.items():
+                match = re.fullmatch(r"stream(\d+)", str(key), re.IGNORECASE)
+                if match is None or not isinstance(value, Mapping):
+                    continue
+                streams.append(
+                    CameraStream(
+                        number=int(match.group(1)),
+                        resolution=(
+                            str(value["resolution"])
+                            if value.get("resolution")
+                            else None
+                        ),
+                        fps=_as_int(value.get("fps")),
+                        bitrate_control=_as_int(value.get("bitrateCtrl")),
+                        constant_bitrate=_as_int(value.get("constantBitrate")),
+                        quality=_as_int(value.get("quality")),
+                    )
+                )
             cameras.append(
                 Camera(
                     camera_id=camera_id,
@@ -270,9 +297,59 @@ class SynologySurveillanceApi:
                         if _first(raw, "ip", "ipAddress")
                         else None
                     ),
+                    streams=tuple(sorted(streams, key=lambda item: item.number)),
+                    high_profile_stream_no=_as_int(raw.get("highProfileStreamNo")),
+                    medium_profile_stream_no=_as_int(
+                        raw.get("mediumProfileStreamNo")
+                    ),
+                    low_profile_stream_no=_as_int(raw.get("lowProfileStreamNo")),
                 )
             )
         return tuple(cameras)
+
+    async def async_get_live_view_paths(
+        self, camera_ids: list[int] | tuple[int, ...]
+    ) -> dict[int, CameraLiveViewPaths]:
+        """Return fresh proxy paths for the requested cameras.
+
+        Surveillance Station exposes one native RTSP live-view path and one
+        compatibility MJPEG path per camera. Numbered stream metadata is
+        discovered separately by :meth:`async_list_cameras`.
+        """
+        if not camera_ids:
+            return {}
+        payload = await self._request_json(
+            API_CAMERA,
+            "GetLiveViewPath",
+            {"idList": ",".join(str(camera_id) for camera_id in camera_ids)},
+        )
+        raw_paths = payload.get("data")
+        if not isinstance(raw_paths, list):
+            raise SynologyConnectionError(
+                f"{API_CAMERA}.GetLiveViewPath returned no path list"
+            )
+        result: dict[int, CameraLiveViewPaths] = {}
+        for raw in raw_paths:
+            if not isinstance(raw, Mapping):
+                continue
+            camera_id = _as_int(raw.get("id"))
+            if camera_id is None:
+                continue
+            result[camera_id] = CameraLiveViewPaths(
+                camera_id=camera_id,
+                rtsp=str(raw["rtspPath"]) if raw.get("rtspPath") else None,
+                rtsp_over_http=(
+                    str(raw["rtspOverHttpPath"])
+                    if raw.get("rtspOverHttpPath")
+                    else None
+                ),
+                mjpeg_http=(
+                    str(raw["mjpegHttpPath"])
+                    if raw.get("mjpegHttpPath")
+                    else None
+                ),
+            )
+        return result
 
     async def async_list_recordings(
         self,
@@ -408,12 +485,14 @@ class SynologySurveillanceApi:
             if camera.status is not None
         }
 
-    async def async_get_snapshot(self, camera_id: int) -> tuple[bytes, str]:
+    async def async_get_snapshot(
+        self, camera_id: int, profile_type: int = 1
+    ) -> tuple[bytes, str]:
         """Fetch a current camera JPEG using the authenticated API session."""
         response = await self._request_binary(
             API_CAMERA,
             "GetSnapshot",
-            {"id": camera_id, "profileType": 1},
+            {"id": camera_id, "profileType": profile_type},
         )
         return response
 

@@ -5,7 +5,7 @@ An unofficial public-beta integration that complements Home Assistant's official
 camera status entities, and a Media Source for Surveillance Station recordings.
 
 > [!IMPORTANT]
-> Version `0.6.2` is a public beta. It is stable on the maintainer's three-camera test
+> Version `0.7.0` is a public beta. It is stable on the maintainer's three-camera test
 > installation, but it still needs reports from different Synology models, camera vendors,
 > recording modes, and Surveillance Station 9.x versions. It does not modify recordings or
 > camera configuration.
@@ -20,23 +20,32 @@ camera status entities, and a Media Source for Surveillance Station recordings.
 - one useful verified-events-today counter per camera;
 - optional diagnostic last-event timestamp and total-recordings-today sensors;
 - one connectivity binary sensor per camera from the documented Camera List status;
+- automatic discovery of numbered camera streams (`stream1` … `streamN`);
+- one live camera entity per discovered stream, with high-quality RTSP over TCP and
+  low-bandwidth MJPEG playback where Surveillance Station publishes those paths;
 - recordings grouped by camera and time range in Home Assistant Media;
 - an authenticated byte-range proxy, so NAS credentials and session IDs never appear in
   dashboards or media URLs;
 - privacy-safe polling and metadata diagnostics;
 - native light/dark integration branding and translated entity icons.
 
-The official integration remains responsible for the live camera and Home Mode. This
-integration deliberately does not create another live camera entity.
+The official integration can remain installed for Home Mode. Live camera entities are
+provided by this integration so dashboards can choose a stable high-quality or
+low-bandwidth source without changing NAS recording settings.
+
+When the official Synology DSM integration manages the same NAS, the live entities reuse
+its already-authenticated, cached live-view paths. This lets the dedicated Surveillance
+Station account remain least-privileged for events and snapshots without copying DSM
+credentials into a second config entry.
 
 ## Beta status
 
-Version `0.6.2` is a reliability-focused public beta. The API layer follows Synology's
+Version `0.7.0` is a reliability-focused public beta. The API layer follows Synology's
 documented Web API discovery, authentication, camera, snapshot, and recording endpoints.
 New event recordings are polled by default, so Home Assistant can consume events when the NAS
 is intentionally unable to initiate connections into the automation network.
 
-Validated on Home Assistant `2026.8.3`, Surveillance Station `9.3.12139`, and three HIKVISION
+Validated on Home Assistant `2026.9.2`, Surveillance Station `9.3.12139`, and three HIKVISION
 cameras. The supported floor is Home Assistant `2026.8.2`; other Surveillance Station 9.x
 installations are beta-test targets rather than claimed compatibility.
 
@@ -47,7 +56,7 @@ Until the beta has broader hardware coverage, install it as a custom HACS reposi
 1. In HACS, open the menu in the upper-right corner and select **Custom repositories**.
 2. Add `https://github.com/kasiom/ha-synology-surveillance-station` as category
    **Integration**.
-3. Find **Synology Surveillance Station**, choose the `v0.6.2` beta release, and download it.
+3. Find **Synology Surveillance Station**, choose the `v0.7.0` beta release, and download it.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration** and select
    **Synology Surveillance Station**.
@@ -85,6 +94,19 @@ disabled by default on new installations. They remain available when a troublesh
 special dashboard use case needs them. Existing enabled entities are not silently disabled
 during an upgrade.
 
+Each numbered **Stream** camera entity corresponds to metadata discovered from the NAS.
+The integration creates entities only for `streamN` objects returned by Surveillance Station:
+one reported stream creates one entity, while three reported streams create three. Synology
+does not expose a separate health flag for each profile, so availability follows the parent
+camera's connection state.
+
+The high-quality profile uses Synology's RTSP path with TCP transport and the low-bandwidth profile
+uses its compatibility MJPEG path. This allows both profiles to coexist in Home Assistant;
+use the low-bandwidth entity in overview dashboards and open the high-quality entity only
+when detail is needed. If a camera reports a third or later stream for which the public
+Synology API supplies no distinct live path, the entity remains available for snapshots and
+clearly omits the live-stream feature instead of silently playing the wrong profile.
+
 A minimal notification automation looks like this after replacing the entity and notify
 service IDs:
 
@@ -110,6 +132,8 @@ max: 10
 ## Compatibility and limits
 
 - Target: Home Assistant 2026.8 or newer and Surveillance Station 9.x.
+- Live View permission is required for live camera entities; snapshot, event, and recording
+  permissions remain independently least-privilege.
 - Playback is passed through without transcoding. H.264 MP4 is the safest choice; H.265
   support depends on the browser, app, and playback target.
 - Event history is Home Assistant's normal event entity history. Recording history remains

@@ -108,6 +108,21 @@ class TranslationTests(unittest.TestCase):
         unrecorded = event_source.split("_unrecorded_attributes", 1)[1].split(")", 1)[0]
         self.assertNotIn('"event_type",\n', unrecorded)
 
+    def test_camera_platform_discovers_numbered_streams(self) -> None:
+        camera_source = (COMPONENT / "camera.py").read_text(encoding="utf-8")
+        api_source = (COMPONENT / "api.py").read_text(encoding="utf-8")
+        manifest = json.loads((COMPONENT / "manifest.json").read_text(encoding="utf-8"))
+        self.assertIn('re.fullmatch(r"stream(\\d+)"', api_source)
+        self.assertIn("for stream in camera.streams", camera_source)
+        self.assertIn("path.rtsp or path.rtsp_over_http", camera_source)
+        self.assertIn('CONF_RTSP_TRANSPORT] = "tcp"', camera_source)
+        self.assertIn("path.mjpeg_http", camera_source)
+        self.assertIn("async_aiohttp_proxy_web", camera_source)
+        self.assertIn('self._source_kind == "rtsp"', camera_source)
+        self.assertIn('async_entries("synology_dsm")', camera_source)
+        self.assertIn("get_camera_live_view_path", camera_source)
+        self.assertIn("stream", manifest["dependencies"])
+
 
 if __name__ == "__main__":
     unittest.main()

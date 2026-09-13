@@ -1,6 +1,6 @@
 # Public beta testing
 
-The goal of the `0.6.x` beta is to validate documented API behavior across Synology models,
+The goal of the `0.7.x` beta is to validate documented API behavior across Synology models,
 Surveillance Station 9.x releases, camera vendors, and recording configurations without
 putting recordings at risk. The integration is read-only.
 
@@ -8,7 +8,8 @@ putting recordings at risk. The integration is read-only.
 
 - Use the latest published beta.
 - Use a dedicated DSM account with access only to the cameras and recordings under test.
-- Keep the official `synology_dsm` integration for live views and Home Mode.
+- Keep the official `synology_dsm` integration for Home Mode. When it manages the same NAS,
+  the custom integration can reuse its authenticated live-view paths.
 - Remove any old Surveillance Station Action Rule or webhook made for this integration; it is
   neither used nor required.
 - Keep **Verify TLS certificate** enabled only when the NAS certificate is trusted by Home
@@ -18,7 +19,7 @@ putting recordings at risk. The integration is read-only.
 
 1. Add the integration and select only intended cameras in **Configure**.
 2. Confirm each camera device has **Camera event**, **Last event snapshot**, **Events today**,
-   and **Connection**.
+   **Connection**, and one **Stream N** entity for every numbered stream reported by the NAS.
 3. Trigger a real motion or analytics event on one camera.
 4. Confirm only that camera's event entity changes and the snapshot updates.
 5. Confirm **Events today** increases once, without duplicate events.
@@ -29,6 +30,8 @@ putting recordings at risk. The integration is read-only.
    replaying an old event.
 9. Temporarily deny the account or change its password, confirm Home Assistant offers
    reauthentication, then restore it.
+10. Play the low-bandwidth stream on a dashboard and open the high-quality stream on demand;
+    report any corruption, excessive delay, or a profile that is present but cannot play.
 
 ## What to report
 

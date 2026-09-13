@@ -163,6 +163,22 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                                     "vendor": "ONVIF",
                                     "model": "Doorbell",
                                     "videoCodec": 3,
+                                    "highProfileStreamNo": 1,
+                                    "mediumProfileStreamNo": 2,
+                                    "lowProfileStreamNo": 3,
+                                    "stream1": {
+                                        "resolution": "1920x1080",
+                                        "fps": 20,
+                                        "bitrateCtrl": 1,
+                                        "quality": "5",
+                                    },
+                                    "stream3": {
+                                        "resolution": "640x360",
+                                        "fps": 10,
+                                        "bitrateCtrl": 2,
+                                        "constantBitrate": "1024",
+                                        "quality": "3",
+                                    },
                                 }
                             ]
                         },
@@ -183,11 +199,53 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info.version, "9.2.11979")
         self.assertEqual(cameras[0].camera_id, 8)
         self.assertEqual(cameras[0].name, "cam3_byt_8")
+        self.assertEqual([stream.number for stream in cameras[0].streams], [1, 3])
+        self.assertEqual(cameras[0].streams[0].resolution, "1920x1080")
+        self.assertEqual(cameras[0].streams[1].constant_bitrate, 1024)
+        self.assertEqual(cameras[0].high_profile_stream_no, 1)
+        self.assertEqual(cameras[0].medium_profile_stream_no, 2)
+        self.assertEqual(cameras[0].low_profile_stream_no, 3)
         login_url, login_kwargs = session.calls[1]
         self.assertNotIn("password-value", login_url)
         self.assertEqual(login_kwargs["data"]["passwd"], "password-value")
         self.assertFalse(login_kwargs["ssl"])
         self.assertEqual(session.calls[2][1]["headers"], {"X-SYNO-TOKEN": "token"})
+
+    async def test_live_view_paths_are_parsed_without_persisting_tokens(self) -> None:
+        session = FakeSession(
+            [
+                FakeResponse(
+                    {
+                        "success": True,
+                        "data": [
+                            {
+                                "id": 8,
+                                "rtspPath": "rtsp://syno:temporary@nas:554/Sms=8.unicast",
+                                "rtspOverHttpPath": "rtsp://nas:5001/rtsp.cgi?StmKey=temporary",
+                                "mjpegHttpPath": "https://nas:5001/video?StmKey=temporary",
+                            }
+                        ],
+                    }
+                )
+            ]
+        )
+        client = api_module.SynologySurveillanceApi(
+            session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+        )
+        client.apis = {
+            "SYNO.SurveillanceStation.Camera": api_module.ApiDescriptor(
+                "SYNO.SurveillanceStation.Camera", "entry.cgi", 1, 9
+            )
+        }
+        client.sid = "sid"
+
+        paths = await client.async_get_live_view_paths([8])
+
+        self.assertEqual(paths[8].camera_id, 8)
+        self.assertIn("Sms=8.unicast", paths[8].rtsp)
+        self.assertIn("rtsp.cgi", paths[8].rtsp_over_http)
+        self.assertIn("video", paths[8].mjpeg_http)
+        self.assertEqual(session.calls[0][1]["data"]["idList"], "8")
 
     async def test_session_expiry_is_reauthenticated_once(self) -> None:
         session = FakeSession(
