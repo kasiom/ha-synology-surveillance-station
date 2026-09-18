@@ -1,4 +1,4 @@
-name: Beta compatibility report
+name: Compatibility report
 description: Share results from a new NAS, camera, or recording configuration.
 title: "[Compatibility]: "
 labels:
@@ -35,8 +35,8 @@ body:
   - type: textarea
     id: checklist
     attributes:
-      label: Beta checklist results
-      description: List which steps in docs/BETA_TESTING.md passed or failed.
+      label: Compatibility checklist results
+      description: List which steps in docs/COMPATIBILITY_TESTING.md passed or failed.
     validations:
       required: true
   - type: textarea

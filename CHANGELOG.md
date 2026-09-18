@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 — first stable release
+
+- Promote the read-only integration from public beta after production validation on three
+  cameras and repeated successful HACS, Hassfest, Python 3.14, lint, and Home Assistant tests.
+- Add behavioral tests for dynamic entity creation, sparse stream numbers, profile roles,
+  RTSP-over-TCP selection, snapshot profile mapping, direct MJPEG proxying, API failures, and
+  authenticated path reuse from the official Synology DSM integration.
+- Replace current beta wording with stable installation, compatibility, and issue-reporting
+  guidance while retaining the historical beta release notes.
+
 ## 0.7.0 — dynamically discovered live streams
 
 - Discover every numbered `stream1` … `streamN` object reported by Surveillance Station
