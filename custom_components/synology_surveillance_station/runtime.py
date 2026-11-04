@@ -11,6 +11,7 @@ from typing import Any
 from .api import SynologySurveillanceApi
 from .const import METADATA_REFRESH_INTERVAL, RECORDING_COUNT_REFRESH_INTERVAL
 from .models import Camera, Recording, SurveillanceEvent, SurveillanceInfo
+from .web_stream import SurveillanceWebStream
 
 EventListener = Callable[[SurveillanceEvent], None]
 StateListener = Callable[[], None]
@@ -50,6 +51,7 @@ class SurveillanceRuntime:
         available_cameras: tuple[Camera, ...] | None = None,
     ) -> None:
         self.api = api
+        self.web_stream = SurveillanceWebStream(api)
         self.info = info
         self.cameras = cameras
         self.available_cameras = available_cameras or cameras

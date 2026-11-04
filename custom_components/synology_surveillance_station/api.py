@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -28,6 +31,15 @@ _STREAM_TIMEOUT = aiohttp.ClientTimeout(
     total=None, connect=15, sock_connect=15, sock_read=None
 )
 _MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+_WEB_API_TIMEOUT = aiohttp.ClientTimeout(total=5)
+_THIRD_PARTY_PATH = "/webapi/SurveillanceStation/ThirdParty"
+
+
+@dataclass
+class _WebStreamSession:
+    auth: dict[str, str]
+    camera_ids: set[int]
+    users: int = 0
 
 
 class SynologyApiError(Exception):
@@ -123,6 +135,8 @@ class SynologySurveillanceApi:
         self.synotoken: str | None = None
         self.info: SurveillanceInfo | None = None
         self.cameras: tuple[Camera, ...] = ()
+        self._web_session: _WebStreamSession | None = None
+        self._web_session_lock = asyncio.Lock()
 
     @property
     def _ssl_argument(self) -> bool | None:
@@ -350,6 +364,114 @@ class SynologySurveillanceApi:
                 ),
             )
         return result
+
+    @asynccontextmanager
+    async def async_open_web_stream(
+        self, camera_id: int
+    ) -> AsyncIterator[aiohttp.ClientWebSocketResponse]:
+        """Open Synology's documented fragmented MP4 live stream."""
+        async with self._web_session_lock:
+            if self._web_session is None:
+                self._web_session = await self._async_start_web_session()
+            session = self._web_session
+            session.users += 1
+        disconnected = False
+        try:
+            if camera_id not in session.camera_ids:
+                raise SynologyPermissionError("Camera is not available for web streaming")
+            async with asyncio.timeout(10):
+                stream = await self._session.ws_connect(
+                    f"{self.base_url}/ss_webstream_task/",
+                    params={**session.auth, "camId": str(camera_id)},
+                    ssl=self.verify_ssl,
+                    timeout=aiohttp.ClientWSTimeout(ws_close=2),
+                    max_msg_size=8 * 1024 * 1024,
+                )
+            async with stream:
+                keepalive = asyncio.create_task(self._async_web_stream_keepalive(stream, session))
+                try:
+                    yield stream
+                finally:
+                    keepalive.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await keepalive
+        except (aiohttp.ClientError, SynologyConnectionError, TimeoutError):
+            disconnected = True
+            raise
+        finally:
+            async with self._web_session_lock:
+                session.users -= 1
+                if self._web_session is session and (disconnected or not session.users):
+                    self._web_session = None
+                if not session.users:
+                    await self._async_logout_web_session(session.auth)
+
+    async def _async_start_web_session(self) -> _WebStreamSession:
+        login = await self._async_third_party_request(
+            "Auth/Login/v1",
+            {"account": self.username, "passwd": self._password},
+            method="POST",
+        )
+        sid = login.get("sid") if isinstance(login, Mapping) else None
+        if not isinstance(sid, str) or not sid:
+            raise SynologyAuthError("Web stream login did not return a session ID")
+        auth = {"_sid": sid}
+        try:
+            listing = await self._async_third_party_request("Camera/List/v1", auth)
+            cameras = listing.get("cameras") if isinstance(listing, Mapping) else None
+            if not isinstance(cameras, list):
+                raise SynologyConnectionError("Web stream API returned an invalid camera list")
+            return _WebStreamSession(auth, {
+                camera_id for camera in cameras
+                if isinstance(camera, Mapping)
+                and (camera_id := _as_int(camera.get("camId"))) is not None
+            })
+        except (SynologyApiError, asyncio.CancelledError):
+            await self._async_logout_web_session(auth)
+            raise
+
+    async def _async_logout_web_session(self, auth: dict[str, str]) -> None:
+        with suppress(SynologyApiError):
+            await self._async_third_party_request("Auth/Logout/v1", auth)
+
+    async def _async_web_stream_keepalive(
+        self, stream: aiohttp.ClientWebSocketResponse, session: _WebStreamSession
+    ) -> None:
+        try:
+            while not stream.closed:
+                for _ in range(6):
+                    await asyncio.sleep(10)
+                    await stream.send_str("keepAlive")
+                await self._async_third_party_request("Recording/Keepalive/v5", session.auth)
+        except (aiohttp.ClientError, OSError, SynologyApiError, TimeoutError):
+            await stream.close()
+
+    async def _async_third_party_request(
+        self, endpoint: str, values: dict[str, str], *, method: str = "GET"
+    ) -> Any:
+        """Call the published ThirdParty API independently of the CGI session."""
+        try:
+            async with self._session.request(
+                method,
+                f"{self.base_url}{_THIRD_PARTY_PATH}/{endpoint}",
+                params=values if method == "GET" else None,
+                data=values if method == "POST" else None,
+                ssl=self._ssl_argument,
+                timeout=_WEB_API_TIMEOUT,
+                allow_redirects=False,
+            ) as response:
+                if response.status != 200:
+                    raise SynologyConnectionError(f"Web stream API returned HTTP {response.status}")
+                payload = await response.json(content_type=None)
+        except (aiohttp.ClientError, TimeoutError, ValueError):
+            raise SynologyConnectionError("Web stream API request failed") from None
+        if not isinstance(payload, Mapping):
+            raise SynologyConnectionError("Web stream API returned invalid data")
+        if payload.get("success") is not True:
+            self._raise_api_error(
+                "Surveillance Station ThirdParty", endpoint, self._error_code(payload)
+            )
+        return payload.get("data")
 
     async def async_list_recordings(
         self,

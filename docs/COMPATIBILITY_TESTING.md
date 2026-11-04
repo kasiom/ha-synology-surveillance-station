@@ -7,9 +7,10 @@ Station 9.x release, camera vendor, or recording configuration. The integration 
 
 - Use the latest published release.
 - Use a dedicated DSM account with access only to the cameras and recordings under test.
-- Confirm the dedicated account can call `GetLiveViewPath` for the selected cameras when testing
-  live streams. The Live View checkbox alone does not guarantee that this API call is allowed.
-  The official `synology_dsm` integration can be used independently for live view and Home Mode.
+- Grant Live View on the selected cameras. Verify RTSP where `GetLiveViewPath` is allowed
+  and WebSocket playback of the high-quality entity where it is denied. Verify the stream
+  can reopen after a disconnect. Low-bandwidth MJPEG still requires the path returned by
+  `GetLiveViewPath`.
 - Remove any old Surveillance Station Action Rule or webhook made for this integration; it is
   neither used nor required.
 - Keep **Verify TLS certificate** enabled only when the NAS certificate is trusted by Home

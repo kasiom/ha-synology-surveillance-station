@@ -599,6 +599,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        await runtime.web_stream.async_close()
         await api.async_logout()
         raise
 
@@ -623,6 +624,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     hass.data[DOMAIN].pop(entry.entry_id, None)
+    await entry.runtime_data.web_stream.async_close()
     await entry.runtime_data.api.async_logout()
     return True
 

@@ -18,7 +18,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SurveillanceConfigEntry
-from .api import SynologyApiError
+from .api import SynologyApiError, SynologyPermissionError
 from .const import DOMAIN
 from .models import Camera, CameraStream
 from .runtime import SurveillanceRuntime
@@ -69,6 +69,7 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
             via_device_id=runtime.hub_device_id,
         )
         self._source_kind = self._resolve_source_kind()
+        self._live_source = self._source_kind
         if self._source_kind == "rtsp":
             self.stream_options[CONF_RTSP_TRANSPORT] = "tcp"
         self._attr_supported_features = (
@@ -78,7 +79,7 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
         )
 
     def _resolve_source_kind(self) -> str | None:
-        """Map numbered streams only when Synology publishes a matching path."""
+        """Map the high and low profiles without substituting another profile."""
         if self._stream.number == self._camera.high_profile_stream_no:
             return "rtsp"
         if self._stream.number == self._camera.low_profile_stream_no:
@@ -129,7 +130,7 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
             ),
             "constant_bitrate_kbps": self._stream.constant_bitrate,
             "quality": self._stream.quality,
-            "live_source": self._source_kind or "metadata_only",
+            "live_source": self._live_source or "metadata_only",
             "available_stream_numbers": [
                 item.number for item in self._camera.streams
             ],
@@ -167,20 +168,26 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
             paths = await self._runtime.api.async_get_live_view_paths(
                 [self._camera.camera_id]
             )
-        except SynologyApiError:
-            _LOGGER.debug(
-                "Could not fetch live-view path for camera %s stream %s",
-                self._camera.camera_id,
-                self._stream.number,
-                exc_info=True,
-            )
-            return None
+        except SynologyApiError as err:
+            if not isinstance(err, SynologyPermissionError) and err.code not in {102, 103, 104}:
+                _LOGGER.debug(
+                    "Could not fetch live-view path for camera %s stream %s",
+                    self._camera.camera_id,
+                    self._stream.number,
+                    exc_info=True,
+                )
+                return None
+            paths = {}
         path = paths.get(self._camera.camera_id)
-        if path is None:
-            return None
         if self._source_kind == "mjpeg":
-            return path.mjpeg_http
-        return path.rtsp or path.rtsp_over_http
+            return path.mjpeg_http if path else None
+        if path and (source := path.rtsp or path.rtsp_over_http):
+            self._live_source = "rtsp"
+            return source
+        source = await self._runtime.web_stream.async_source(self._camera.camera_id)
+        if source:
+            self._live_source = "wss" if self._runtime.api.use_ssl else "ws"
+        return source
 
     @override
     async def handle_async_mjpeg_stream(

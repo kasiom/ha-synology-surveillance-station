@@ -18,6 +18,7 @@ from homeassistant.setup import async_setup_component  # noqa: E402
 
 from custom_components.synology_surveillance_station.api import (  # noqa: E402
     SynologyApiError,
+    SynologyPermissionError,
 )
 from custom_components.synology_surveillance_station.camera import (  # noqa: E402
     SurveillanceLiveCamera,
@@ -239,6 +240,21 @@ async def test_live_sources_use_own_session_with_official_entry_present(hass) ->
 
     entries.assert_not_called()
     surveillance.get_camera_live_view_path.assert_not_called()
+
+
+async def test_main_stream_uses_websocket_when_live_path_is_denied(hass) -> None:
+    """Only an unavailable RTSP path switches the main stream to the loopback source."""
+    runtime = _runtime()
+    runtime.api.use_ssl = True
+    runtime.api.async_get_live_view_paths.side_effect = SynologyPermissionError("Denied", 105)
+    camera = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[0])
+    camera.hass = hass
+    with patch.object(
+        runtime.web_stream, "async_source", AsyncMock(return_value="http://127.0.0.1:1234/source")
+    ) as source:
+        assert await camera.stream_source() == "http://127.0.0.1:1234/source"
+    source.assert_awaited_once_with(CAMERA.camera_id)
+    assert camera.extra_state_attributes["live_source"] == "wss"
 
 
 async def test_live_profiles_follow_camera_status_without_reload(hass) -> None:

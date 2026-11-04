@@ -20,8 +20,8 @@ camera status entities, and a Media Source for Surveillance Station recordings.
 - optional diagnostic last-event timestamp and total-recordings-today sensors;
 - one connectivity binary sensor per camera from the documented Camera List status;
 - automatic discovery of numbered camera streams (`stream1` … `streamN`);
-- one live camera entity per discovered stream, with high-quality RTSP over TCP and
-  low-bandwidth MJPEG playback where Surveillance Station publishes those paths;
+- one camera entity per discovered stream, with high-quality live video over RTSP
+  or WebSocket and low-bandwidth MJPEG where Surveillance Station publishes that path;
 - recordings grouped by camera and time range in Home Assistant Media;
 - an authenticated byte-range proxy, so NAS credentials and session IDs never appear in
   dashboards or media URLs;
@@ -32,12 +32,10 @@ The official integration can remain installed for Home Mode. Live camera entitie
 provided by this integration so dashboards can choose a stable high-quality or
 low-bandwidth source without changing NAS recording settings.
 
-Live streams use the dedicated account configured in this integration. The account needs
-**Live View** permission and must be allowed to call the Synology `GetLiveViewPath` API. A profile
-can allow live viewing in Surveillance Station while the NAS still denies this API call (code
-105). If upgrading from 1.0.0, verify both live profiles after updating. If the API denies access,
-you can keep using the official DSM camera entities for live view and this integration for
-events, snapshots, and recordings with the dedicated account.
+Live streams use the dedicated account configured in this integration. Give it **Live View**
+permission for the selected cameras. If Surveillance Station denies `GetLiveViewPath` or
+does not return an RTSP address, the high-quality entity tries Synology's WebSocket API
+on the configured NAS web port. Home Assistant handles HLS playback for both transports.
 
 ## Compatibility status
 
@@ -99,10 +97,10 @@ one reported stream creates one entity, while three reported streams create thre
 does not expose a separate health flag for each profile, so availability follows the parent
 camera's connection state.
 
-The high-quality profile uses Synology's RTSP path with TCP transport and the low-bandwidth profile
-uses its compatibility MJPEG path. This allows both profiles to coexist in Home Assistant;
-use the low-bandwidth entity in overview dashboards and open the high-quality entity only
-when detail is needed. If a camera reports a third or later stream for which the public
+The high-quality profile uses Synology's RTSP path over TCP when issued and can use the
+WebSocket API through the NAS web port when that path is unavailable. The low-bandwidth
+profile uses Synology's compatibility MJPEG path when issued. If a camera reports a third
+or later stream for which the public
 Synology API supplies no distinct live path, the entity remains available for snapshots and
 clearly omits the live-stream feature instead of silently playing the wrong profile.
 
