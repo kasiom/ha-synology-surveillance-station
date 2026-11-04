@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Authenticate live-view requests with the integration's own Surveillance Station account.
+  Enable Live View for the selected cameras if upgrading from a setup that relied on DSM.
+- Show an explanatory message when opening options before the integration has loaded.
+- Update stream entity availability when Surveillance Station reports a camera going
+  offline or coming back online, without reloading the integration.
+
 ## 1.0.0 — first stable release
 
 - Promote the read-only integration from public beta after production validation on three

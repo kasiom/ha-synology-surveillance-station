@@ -198,6 +198,9 @@ class SynologySurveillanceOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Configure recording event polling."""
+        if self.config_entry.state is not config_entries.ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+
         runtime = self.config_entry.runtime_data
         cameras = runtime.available_cameras
         try:

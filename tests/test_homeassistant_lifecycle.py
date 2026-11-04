@@ -140,6 +140,40 @@ def _fake_api(*, initialize_error: Exception | None = None) -> SimpleNamespace:
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+@pytest.mark.parametrize(
+    "state",
+    [config_entries.ConfigEntryState.NOT_LOADED, config_entries.ConfigEntryState.SETUP_RETRY],
+)
+async def test_options_flow_aborts_when_entry_has_no_runtime(hass, state) -> None:
+    """An unloaded entry must return a readable abort, not raise AttributeError."""
+    entry = MockConfigEntry(domain=DOMAIN, data=USER_INPUT, state=state)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "not_loaded"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_loaded_options_flow_lists_cameras(hass) -> None:
+    """The availability guard must leave normal options accessible."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=USER_INPUT, state=config_entries.ConfigEntryState.LOADED
+    )
+    entry.add_to_hass(hass)
+    api = _fake_api()
+    api.async_list_cameras = AsyncMock(return_value=(CAMERA,))
+    entry.runtime_data = SurveillanceRuntime(api, INFO, (CAMERA,))
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    api.async_list_cameras.assert_awaited_once_with()
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_setup_and_unload_entry_lifecycle(hass) -> None:
     """Set up runtime state, initial metadata, and a clean NAS logout."""
     entry = MockConfigEntry(

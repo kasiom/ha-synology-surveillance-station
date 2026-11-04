@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -9,9 +11,10 @@ import pytest
 
 pytest.importorskip("homeassistant")
 
-from homeassistant.components.camera import CameraEntityFeature  # noqa: E402
+from homeassistant.components.camera import DATA_COMPONENT, CameraEntityFeature  # noqa: E402
 from homeassistant.components.stream import CONF_RTSP_TRANSPORT  # noqa: E402
-from homeassistant.const import CONF_HOST  # noqa: E402
+from homeassistant.const import CONF_HOST, STATE_UNAVAILABLE  # noqa: E402
+from homeassistant.setup import async_setup_component  # noqa: E402
 
 from custom_components.synology_surveillance_station.api import (  # noqa: E402
     SynologyApiError,
@@ -199,8 +202,8 @@ async def test_live_sources_use_api_paths_and_skip_metadata_only_profile(hass) -
     assert await high.stream_source() is None
 
 
-async def test_live_sources_reuse_matching_official_synology_entry(hass) -> None:
-    """The official integration may supply authenticated paths for the same NAS."""
+async def test_live_sources_use_own_session_with_official_entry_present(hass) -> None:
+    """A matching DSM entry must not be used, even when our API request fails."""
     runtime = _runtime()
     high = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[0])
     low = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[2])
@@ -223,12 +226,47 @@ async def test_live_sources_reuse_matching_official_synology_entry(hass) -> None
 
     with patch.object(
         hass.config_entries, "async_entries", return_value=[official_entry]
-    ):
-        assert await high.stream_source() == "rtsp://nas.example.test/official-high"
-        assert await low.stream_source() == "https://nas.example.test/official-mjpeg.cgi"
+    ) as entries:
+        assert await high.stream_source() == "rtsp://nas.example.test/high"
+        assert await low.stream_source() == "https://nas.example.test/mjpeg.cgi"
+        assert [call.args for call in runtime.api.async_get_live_view_paths.await_args_list] == [
+            ([CAMERA.camera_id],),
+            ([CAMERA.camera_id],),
+        ]
+        runtime.api.async_get_live_view_paths.side_effect = SynologyApiError("Live View denied")
+        assert await high.stream_source() is None
+        assert await low.stream_source() is None
 
-    assert runtime.api.async_get_live_view_paths.await_count == 0
-    assert surveillance.get_camera_live_view_path.call_count == 2
+    entries.assert_not_called()
+    surveillance.get_camera_live_view_path.assert_not_called()
+
+
+async def test_live_profiles_follow_camera_status_without_reload(hass) -> None:
+    """Publish offline, recovery and stale status changes to Home Assistant."""
+    camera = replace(CAMERA, status=3)
+    runtime = SurveillanceRuntime(_runtime().api, INFO, (camera,))
+    high = SurveillanceLiveCamera(runtime, camera, STREAMS[0])
+    low = SurveillanceLiveCamera(runtime, camera, STREAMS[2])
+    assert await async_setup_component(hass, "camera", {})
+    await hass.data[DATA_COMPONENT].async_add_entities([high, low])
+    entity_ids = (high.entity_id, low.entity_id)
+
+    def states() -> tuple[str, ...]:
+        return tuple(hass.states.get(entity_id).state for entity_id in entity_ids)
+
+    assert states() == (STATE_UNAVAILABLE, STATE_UNAVAILABLE)
+    for reported_statuses, expected in (
+        ({camera.camera_id: 1}, "idle"),
+        ({camera.camera_id: 3}, STATE_UNAVAILABLE),
+        ({camera.camera_id: 1}, "idle"),
+        ({}, STATE_UNAVAILABLE),
+        ({camera.camera_id: 1}, "idle"),
+    ):
+        runtime.complete_metadata_refresh(datetime.now(UTC), {}, reported_statuses, set())
+        assert states() == (expected, expected)
+
+    runtime.mark_camera_statuses_unavailable()
+    assert states() == (STATE_UNAVAILABLE, STATE_UNAVAILABLE)
 
 
 async def test_low_profile_proxies_mjpeg_directly(hass) -> None:

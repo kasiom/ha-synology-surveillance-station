@@ -32,10 +32,9 @@ The official integration can remain installed for Home Mode. Live camera entitie
 provided by this integration so dashboards can choose a stable high-quality or
 low-bandwidth source without changing NAS recording settings.
 
-When the official Synology DSM integration manages the same NAS, the live entities reuse
-its already-authenticated, cached live-view paths. This lets the dedicated Surveillance
-Station account remain least-privileged for events and snapshots without copying DSM
-credentials into a second config entry.
+Live streams use the dedicated account configured in this integration. Grant it **Live View**
+permission for the cameras you want to stream. If upgrading from 1.0.0, check that permission
+before updating: the integration no longer uses live-view paths from the official DSM integration.
 
 ## Compatibility status
 

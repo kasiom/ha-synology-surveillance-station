@@ -119,8 +119,6 @@ class TranslationTests(unittest.TestCase):
         self.assertIn("path.mjpeg_http", camera_source)
         self.assertIn("async_aiohttp_proxy_web", camera_source)
         self.assertIn('self._source_kind == "rtsp"', camera_source)
-        self.assertIn('async_entries("synology_dsm")', camera_source)
-        self.assertIn("get_camera_live_view_path", camera_source)
         self.assertIn("stream", manifest["dependencies"])
 
 

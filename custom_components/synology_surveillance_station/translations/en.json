@@ -49,6 +49,9 @@
     }
   },
   "options": {
+    "abort": {
+      "not_loaded": "The integration is not loaded. Check that the NAS is reachable and try again."
+    },
     "step": {
       "init": {
         "title": "Cameras and event polling",
