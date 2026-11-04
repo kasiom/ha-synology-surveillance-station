@@ -50,29 +50,28 @@ Compatibility reports are welcome for other Surveillance Station 9.x installatio
 
 ## Install with HACS
 
-Install the integration as a custom HACS repository:
+1. Open **HACS** in Home Assistant and search for **Synology Surveillance Station**.
+2. Open the repository and select **Download**.
+3. Restart Home Assistant, then follow [Set up in Home Assistant](#set-up-in-home-assistant).
 
-1. In HACS, open the menu in the upper-right corner and select **Custom repositories**.
-2. Add `https://github.com/kasiom/ha-synology-surveillance-station` as category
-   **Integration**.
-3. Find **Synology Surveillance Station** and download the latest release.
-4. Restart Home Assistant.
-5. Go to **Settings → Devices & services → Add integration** and select
+## Set up in Home Assistant
+
+1. Use a dedicated Synology account with access to Surveillance Station. Grant **Live View**
+   for cameras you want to stream and **Playback** for cameras whose recordings you want to browse.
+2. In Home Assistant, go to **Settings → Devices & services → Add integration** and select
    **Synology Surveillance Station**.
+3. Enter the NAS hostname or IP address, the DSM web port, and the dedicated account
+   credentials. Use the HTTPS port configured on your NAS, usually `5001`. Enable
+   **Verify TLS certificate** when Home Assistant trusts the NAS certificate.
+4. Open **Configure** on the integration to select cameras and adjust event polling.
+   Polling is enabled by default and checks for new events every 10 seconds.
 
 ## Manual installation for development
 
 1. Copy `custom_components/synology_surveillance_station` to the same path under the Home
    Assistant configuration directory.
 2. Restart Home Assistant.
-3. Add **Synology Surveillance Station** from Settings → Devices & services.
-4. Enter the DSM address, port, and a dedicated account. HTTPS with certificate
-   verification disabled is the practical default for a NAS using a self-signed
-   certificate.
-5. Leave API event polling enabled. The default ten-second interval is appropriate for most
-   installations.
-6. Open **Configure** to select which cameras belong in Home Assistant or to change the
-   polling interval.
+3. Follow [Set up in Home Assistant](#set-up-in-home-assistant).
 
 ## Recommended use
 
