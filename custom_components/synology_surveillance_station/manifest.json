@@ -1,6 +1,9 @@
 {
   "domain": "synology_surveillance_station",
   "name": "Synology Surveillance Station",
+  "categories": [
+    "security_safety.cameras"
+  ],
   "codeowners": [
     "@kasiom"
   ],

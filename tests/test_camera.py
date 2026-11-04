@@ -262,10 +262,14 @@ async def test_low_stream_advertises_hls_when_mjpeg_is_denied(hass) -> None:
     runtime = _runtime()
     runtime.api.use_ssl = True
     runtime.api.async_get_live_view_paths.side_effect = SynologyPermissionError("Denied", 105)
-    low = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[2])
+    added: list[SurveillanceLiveCamera] = []
+    await async_setup_entry(hass, SimpleNamespace(runtime_data=runtime), added.extend)
+    low = added[2]
     assert await async_setup_component(hass, "camera", {})
     await hass.data[DATA_COMPONENT].async_add_entities([low])
     assert low.supported_features == CameraEntityFeature.STREAM
+    state = hass.states.get(low.entity_id)
+    assert state.attributes["supported_features"] == CameraEntityFeature.STREAM
     with patch.object(
         runtime.web_stream, "async_source", AsyncMock(return_value="http://127.0.0.1:1234/low")
     ) as source:

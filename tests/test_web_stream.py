@@ -22,8 +22,12 @@ def _packet(payload: bytes, fields: bytes = b"mediaType=1") -> bytes:
 
 
 @pytest.fixture
-async def nas() -> AsyncIterator[tuple[int, list[str], list[str], list[str | None]]]:
+async def nas(
+    request: pytest.FixtureRequest,
+) -> AsyncIterator[tuple[int, list[str], list[str], list[str | None]]]:
     """Simulate the documented ThirdParty login, camera list and stream endpoints."""
+    if request.config.pluginmanager.hasplugin("socket"):
+        request.getfixturevalue("socket_enabled")
     logins: list[str] = []
     logouts: list[str] = []
     profiles: list[str | None] = []

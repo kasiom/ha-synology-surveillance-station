@@ -33,11 +33,13 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Create one entity for every numbered stream reported by the NAS."""
-    async_add_entities(
+    entities = [
         SurveillanceLiveCamera(entry.runtime_data, camera, stream)
         for camera in entry.runtime_data.cameras
         for stream in camera.streams
-    )
+    ]
+    await asyncio.gather(*(entity.async_prepare_playback() for entity in entities))
+    async_add_entities(entities)
 
 
 class SurveillanceLiveCamera(HomeAssistantCamera):
@@ -97,10 +99,8 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
             and self._runtime.camera_statuses.get(camera_id) == 1
         )
 
-    @override
-    async def async_prepare_to_add_to_hass(self) -> None:
+    async def async_prepare_playback(self) -> None:
         """Choose low-profile playback before Home Assistant registers capabilities."""
-        await super().async_prepare_to_add_to_hass()
         if self._source_kind != "mjpeg":
             return
         try:
