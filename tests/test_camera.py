@@ -85,6 +85,7 @@ def _runtime() -> SurveillanceRuntime:
     api = SimpleNamespace(
         host="nas.example.test",
         port=5001,
+        use_ssl=True,
         async_get_snapshot=AsyncMock(return_value=(b"jpeg", "image/jpeg")),
         async_get_live_view_paths=AsyncMock(
             return_value={
@@ -245,7 +246,6 @@ async def test_live_sources_use_own_session_with_official_entry_present(hass) ->
 async def test_main_stream_uses_websocket_when_live_path_is_denied(hass) -> None:
     """Only an unavailable RTSP path switches the main stream to the loopback source."""
     runtime = _runtime()
-    runtime.api.use_ssl = True
     runtime.api.async_get_live_view_paths.side_effect = SynologyPermissionError("Denied", 105)
     camera = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[0])
     camera.hass = hass
@@ -260,7 +260,6 @@ async def test_main_stream_uses_websocket_when_live_path_is_denied(hass) -> None
 async def test_low_stream_advertises_hls_when_mjpeg_is_denied(hass) -> None:
     """A live dashboard card should use HLS and request the actual low profile."""
     runtime = _runtime()
-    runtime.api.use_ssl = True
     runtime.api.async_get_live_view_paths.side_effect = SynologyPermissionError("Denied", 105)
     added: list[SurveillanceLiveCamera] = []
     await async_setup_entry(hass, SimpleNamespace(runtime_data=runtime), added.extend)
