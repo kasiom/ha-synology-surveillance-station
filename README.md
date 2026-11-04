@@ -5,9 +5,8 @@ An unofficial custom integration that complements Home Assistant's official
 camera status entities, and a Media Source for Surveillance Station recordings.
 
 > [!IMPORTANT]
-> Version `1.0.0` is the first stable release. The integration is read-only: it does not
-> modify recordings or camera configuration. Compatibility reports from additional Synology
-> models and camera vendors remain welcome.
+> The integration provides read-only access to recordings and camera configuration.
+> Compatibility reports from additional Synology models and camera vendors remain welcome.
 
 ## What it adds
 
@@ -36,18 +35,18 @@ Live streams use the dedicated account configured in this integration. Give it *
 permission for the selected cameras. If Surveillance Station denies `GetLiveViewPath` or
 does not return a path for a live profile, the corresponding entity tries Synology's
 WebSocket API on the configured NAS web port. Home Assistant handles HLS playback for
-RTSP and WebSocket sources.
+RTSP and WebSocket sources. The WebSocket fallback carries video only.
 
 ## Compatibility status
 
-Version `1.0.0` follows Synology's documented Web API discovery, authentication, camera,
+The integration follows Synology's documented Web API discovery, authentication, camera,
 snapshot, and recording endpoints. New event recordings are polled by default, so Home
 Assistant can consume events when the NAS is intentionally unable to initiate connections
 into the automation network.
 
-Validated on Home Assistant `2026.9.2`, Surveillance Station `9.3.12139`, and three HIKVISION
-cameras. The supported floor is Home Assistant `2026.8.2`; other Surveillance Station 9.x
-installations are supported on a best-effort basis and benefit from compatibility reports.
+Live playback was validated on Home Assistant `2026.10.4`, Surveillance Station `9.3.12139`,
+and three HIKVISION cameras. The minimum Home Assistant version is `2026.8.2`.
+Compatibility reports are welcome for other Surveillance Station 9.x installations.
 
 ## Install with HACS
 

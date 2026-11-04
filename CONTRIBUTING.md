@@ -25,11 +25,11 @@ into a regression test.
 
 ## Design boundaries
 
-- The official `synology_dsm` integration owns live cameras and Home Mode.
-- This integration owns event recordings, last-event snapshots, camera status, and recording
-  browsing/playback.
-- NAS credentials and session IDs must never be exposed in entity attributes, URLs, logs, or
-  diagnostics.
+- The official `synology_dsm` integration can provide Home Mode independently.
+- This integration uses its own Surveillance Station session for live cameras, event recordings,
+  last-event snapshots, camera status, and recording playback.
+- Keep NAS credentials and session IDs out of entity attributes, client-facing URLs, logs,
+  and diagnostics.
 - Continuous recording segments must never be guessed to be detection events.
 - Existing NAS recordings must not be modified or deleted.
 

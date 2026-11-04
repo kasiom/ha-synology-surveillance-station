@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 - Authenticate live-view requests with the integration's own Surveillance Station account.
   Enable Live View for the selected cameras if upgrading from a setup that relied on DSM.
+- Use Synology's WebSocket video when the NAS does not issue RTSP or MJPEG paths.
+  Both camera profiles keep their existing entity IDs and play through Home Assistant.
 - Show an explanatory message when opening options before the integration has loaded.
 - Update stream entity availability when Surveillance Station reports a camera going
   offline or coming back online, without reloading the integration.
