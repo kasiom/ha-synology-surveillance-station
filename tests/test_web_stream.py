@@ -22,10 +22,11 @@ def _packet(payload: bytes, fields: bytes = b"mediaType=1") -> bytes:
 
 
 @pytest.fixture
-async def nas() -> AsyncIterator[tuple[int, list[str], list[str]]]:
+async def nas() -> AsyncIterator[tuple[int, list[str], list[str], list[str | None]]]:
     """Simulate the documented ThirdParty login, camera list and stream endpoints."""
     logins: list[str] = []
     logouts: list[str] = []
+    profiles: list[str | None] = []
 
     async def login(request: web.Request) -> web.Response:
         data = await request.post()
@@ -45,6 +46,7 @@ async def nas() -> AsyncIterator[tuple[int, list[str], list[str]]]:
     async def video(request: web.Request) -> web.WebSocketResponse:
         assert request.query["_sid"] in logins
         assert request.query["camId"] == "8"
+        profiles.append(request.query.get("profile"))
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         await ws.send_bytes(_packet(MEDIA))
@@ -65,29 +67,30 @@ async def nas() -> AsyncIterator[tuple[int, list[str], list[str]]]:
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", 0).start()
     try:
-        yield runner.addresses[0][1], logins, logouts
+        yield runner.addresses[0][1], logins, logouts, profiles
     finally:
         await runner.cleanup()
 
 
 async def test_loopback_stream_reopens_with_new_session_and_mp4_header(nas) -> None:
-    port, logins, logouts = nas
+    port, logins, logouts, profiles = nas
     async with aiohttp.ClientSession() as http:
         api = api_module.SynologySurveillanceApi(
             http, "127.0.0.1", port, "viewer", "example", use_ssl=False, verify_ssl=True
         )
         bridge = web_stream_module.SurveillanceWebStream(api)
         try:
-            source = await bridge.async_source(8)
-            assert source.startswith("http://127.0.0.1:")
-            for _ in range(2):
+            for profile in (0, 0, 2):
+                source = await bridge.async_source(8, profile)
+                assert source.startswith("http://127.0.0.1:")
                 async with http.get(source) as response:
                     assert response.status == 200
                     assert response.content_type == "video/mp4"
                     assert await response.read() == INIT + MEDIA
-            async with http.get(source.removesuffix("/8") + "/9") as response:
+            async with http.get(source.removesuffix("/8/2") + "/9/2") as response:
                 assert response.status == 404
-            assert logins == logouts == ["session-1", "session-2"]
+            assert logins == logouts == ["session-1", "session-2", "session-3"]
+            assert profiles == [None, None, "2"]
         finally:
             await bridge.async_close()
-        assert await bridge.async_source(8) is None
+        assert await bridge.async_source(8, 0) is None

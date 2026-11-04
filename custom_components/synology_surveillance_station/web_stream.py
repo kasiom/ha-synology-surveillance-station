@@ -45,10 +45,10 @@ class SurveillanceWebStream:
         self._runner: web.AppRunner | None = None
         self._lock = asyncio.Lock()
         self._token = secrets.token_urlsafe(24)
-        self._cameras: set[int] = set()
+        self._sources: set[tuple[int, int]] = set()
         self._closed = False
 
-    async def async_source(self, camera_id: int) -> str | None:
+    async def async_source(self, camera_id: int, profile: int) -> str | None:
         """Return a local source URL for a camera already selected by HA."""
         async with self._lock:
             if self._closed:
@@ -56,7 +56,9 @@ class SurveillanceWebStream:
             if self._runner is None:
                 app = web.Application()
                 app.router.add_get(
-                    f"/{self._token}/{{camera_id:[0-9]+}}", self._async_video, allow_head=False
+                    f"/{self._token}/{{camera_id:[0-9]+}}/{{profile:[02]}}",
+                    self._async_video,
+                    allow_head=False,
                 )
                 runner = web.AppRunner(
                     app, access_log=None, handler_cancellation=True, shutdown_timeout=1
@@ -68,9 +70,9 @@ class SurveillanceWebStream:
                     await runner.cleanup()
                     raise
                 self._runner = runner
-            self._cameras.add(camera_id)
+            self._sources.add((camera_id, profile))
             port = self._runner.addresses[0][1]
-            return f"http://127.0.0.1:{port}/{self._token}/{camera_id}"
+            return f"http://127.0.0.1:{port}/{self._token}/{camera_id}/{profile}"
 
     async def async_close(self) -> None:
         """Stop serving sources and close active NAS connections on unload."""
@@ -82,14 +84,15 @@ class SurveillanceWebStream:
 
     async def _async_video(self, request: web.Request) -> web.StreamResponse:
         camera_id = int(request.match_info["camera_id"])
-        if camera_id not in self._cameras:
+        profile = int(request.match_info["profile"])
+        if (camera_id, profile) not in self._sources:
             return web.Response(status=404)
         response = web.StreamResponse(
             headers={"Content-Type": "video/mp4", "Cache-Control": "no-store"}
         )
         loop = asyncio.get_running_loop()
         try:
-            async with self._api.async_open_web_stream(camera_id) as stream:
+            async with self._api.async_open_web_stream(camera_id, profile) as stream:
                 async with asyncio.timeout(_VIDEO_TIMEOUT) as video_timeout:
                     async for message in stream:
                         if message.type != aiohttp.WSMsgType.BINARY:

@@ -20,8 +20,8 @@ camera status entities, and a Media Source for Surveillance Station recordings.
 - optional diagnostic last-event timestamp and total-recordings-today sensors;
 - one connectivity binary sensor per camera from the documented Camera List status;
 - automatic discovery of numbered camera streams (`stream1` … `streamN`);
-- one camera entity per discovered stream, with high-quality live video over RTSP
-  or WebSocket and low-bandwidth MJPEG where Surveillance Station publishes that path;
+- one camera entity per discovered stream, with RTSP for the high-quality profile,
+  MJPEG for the low-bandwidth profile, and WebSocket fallback for both;
 - recordings grouped by camera and time range in Home Assistant Media;
 - an authenticated byte-range proxy, so NAS credentials and session IDs never appear in
   dashboards or media URLs;
@@ -34,8 +34,9 @@ low-bandwidth source without changing NAS recording settings.
 
 Live streams use the dedicated account configured in this integration. Give it **Live View**
 permission for the selected cameras. If Surveillance Station denies `GetLiveViewPath` or
-does not return an RTSP address, the high-quality entity tries Synology's WebSocket API
-on the configured NAS web port. Home Assistant handles HLS playback for both transports.
+does not return a path for a live profile, the corresponding entity tries Synology's
+WebSocket API on the configured NAS web port. Home Assistant handles HLS playback for
+RTSP and WebSocket sources.
 
 ## Compatibility status
 
@@ -99,8 +100,8 @@ camera's connection state.
 
 The high-quality profile uses Synology's RTSP path over TCP when issued and can use the
 WebSocket API through the NAS web port when that path is unavailable. The low-bandwidth
-profile uses Synology's compatibility MJPEG path when issued. If a camera reports a third
-or later stream for which the public
+profile uses the compatibility MJPEG path when issued and the WebSocket low profile
+otherwise. If a camera reports a third or later stream for which the public
 Synology API supplies no distinct live path, the entity remains available for snapshots and
 clearly omits the live-stream feature instead of silently playing the wrong profile.
 

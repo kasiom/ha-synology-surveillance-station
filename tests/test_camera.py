@@ -253,8 +253,24 @@ async def test_main_stream_uses_websocket_when_live_path_is_denied(hass) -> None
         runtime.web_stream, "async_source", AsyncMock(return_value="http://127.0.0.1:1234/source")
     ) as source:
         assert await camera.stream_source() == "http://127.0.0.1:1234/source"
-    source.assert_awaited_once_with(CAMERA.camera_id)
+    source.assert_awaited_once_with(CAMERA.camera_id, 0)
     assert camera.extra_state_attributes["live_source"] == "wss"
+
+
+async def test_low_stream_advertises_hls_when_mjpeg_is_denied(hass) -> None:
+    """A live dashboard card should use HLS and request the actual low profile."""
+    runtime = _runtime()
+    runtime.api.use_ssl = True
+    runtime.api.async_get_live_view_paths.side_effect = SynologyPermissionError("Denied", 105)
+    low = SurveillanceLiveCamera(runtime, CAMERA, STREAMS[2])
+    assert await async_setup_component(hass, "camera", {})
+    await hass.data[DATA_COMPONENT].async_add_entities([low])
+    assert low.supported_features == CameraEntityFeature.STREAM
+    with patch.object(
+        runtime.web_stream, "async_source", AsyncMock(return_value="http://127.0.0.1:1234/low")
+    ) as source:
+        assert await low.stream_source() == "http://127.0.0.1:1234/low"
+    source.assert_awaited_once_with(CAMERA.camera_id, 2)
 
 
 async def test_live_profiles_follow_camera_status_without_reload(hass) -> None:

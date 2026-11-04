@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, override
 
@@ -20,7 +21,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import SurveillanceConfigEntry
 from .api import SynologyApiError, SynologyPermissionError
 from .const import DOMAIN
-from .models import Camera, CameraStream
+from .models import Camera, CameraLiveViewPaths, CameraStream
 from .runtime import SurveillanceRuntime
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
         )
         self._source_kind = self._resolve_source_kind()
         self._live_source = self._source_kind
+        self._low_web_stream = False
         if self._source_kind == "rtsp":
             self.stream_options[CONF_RTSP_TRANSPORT] = "tcp"
         self._attr_supported_features = (
@@ -94,6 +96,25 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
             self._runtime.camera_status_available.get(camera_id, False)
             and self._runtime.camera_statuses.get(camera_id) == 1
         )
+
+    @override
+    async def async_prepare_to_add_to_hass(self) -> None:
+        """Choose low-profile playback before Home Assistant registers capabilities."""
+        await super().async_prepare_to_add_to_hass()
+        if self._source_kind != "mjpeg":
+            return
+        try:
+            async with asyncio.timeout(5):
+                path = await self._async_live_view_path()
+        except (SynologyApiError, TimeoutError):
+            _LOGGER.debug(
+                "Could not check low live-view path for camera %s", self._camera.camera_id
+            )
+            return
+        if not path or not path.mjpeg_http:
+            self._low_web_stream = True
+            self._attr_supported_features = CameraEntityFeature.STREAM
+            self._live_source = "wss" if self._runtime.api.use_ssl else "ws"
 
     async def async_added_to_hass(self) -> None:
         """Update availability when the shared camera status changes."""
@@ -164,27 +185,36 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
         """Return a fresh URL so expiring Synology stream keys remain valid."""
         if self._source_kind is None:
             return None
+        if self._low_web_stream:
+            return await self._async_web_source(2)
         try:
-            paths = await self._runtime.api.async_get_live_view_paths(
-                [self._camera.camera_id]
+            path = await self._async_live_view_path()
+        except SynologyApiError:
+            _LOGGER.debug(
+                "Could not fetch live-view path for camera %s stream %s",
+                self._camera.camera_id,
+                self._stream.number,
+                exc_info=True,
             )
-        except SynologyApiError as err:
-            if not isinstance(err, SynologyPermissionError) and err.code not in {102, 103, 104}:
-                _LOGGER.debug(
-                    "Could not fetch live-view path for camera %s stream %s",
-                    self._camera.camera_id,
-                    self._stream.number,
-                    exc_info=True,
-                )
-                return None
-            paths = {}
-        path = paths.get(self._camera.camera_id)
+            return None
         if self._source_kind == "mjpeg":
             return path.mjpeg_http if path else None
         if path and (source := path.rtsp or path.rtsp_over_http):
             self._live_source = "rtsp"
             return source
-        source = await self._runtime.web_stream.async_source(self._camera.camera_id)
+        return await self._async_web_source(0)
+
+    async def _async_live_view_path(self) -> CameraLiveViewPaths | None:
+        try:
+            paths = await self._runtime.api.async_get_live_view_paths([self._camera.camera_id])
+        except SynologyApiError as err:
+            if isinstance(err, SynologyPermissionError) or err.code in {102, 103, 104}:
+                return None
+            raise
+        return paths.get(self._camera.camera_id)
+
+    async def _async_web_source(self, profile: int) -> str | None:
+        source = await self._runtime.web_stream.async_source(self._camera.camera_id, profile)
         if source:
             self._live_source = "wss" if self._runtime.api.use_ssl else "ws"
         return source
@@ -194,6 +224,8 @@ class SurveillanceLiveCamera(HomeAssistantCamera):
         self, request: web.Request
     ) -> web.StreamResponse | None:
         """Proxy Synology's low-bandwidth MJPEG without HLS transcoding."""
+        if self._low_web_stream:
+            return await super().handle_async_mjpeg_stream(request)
         if self._source_kind != "mjpeg" or not (source := await self.stream_source()):
             return None
         websession = async_get_clientsession(self.hass, verify_ssl=False)

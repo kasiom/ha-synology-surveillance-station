@@ -367,7 +367,7 @@ class SynologySurveillanceApi:
 
     @asynccontextmanager
     async def async_open_web_stream(
-        self, camera_id: int
+        self, camera_id: int, profile: int
     ) -> AsyncIterator[aiohttp.ClientWebSocketResponse]:
         """Open Synology's documented fragmented MP4 live stream."""
         async with self._web_session_lock:
@@ -379,10 +379,13 @@ class SynologySurveillanceApi:
         try:
             if camera_id not in session.camera_ids:
                 raise SynologyPermissionError("Camera is not available for web streaming")
+            params = {**session.auth, "camId": str(camera_id)}
+            if profile:
+                params["profile"] = str(profile)
             async with asyncio.timeout(10):
                 stream = await self._session.ws_connect(
                     f"{self.base_url}/ss_webstream_task/",
-                    params={**session.auth, "camId": str(camera_id)},
+                    params=params,
                     ssl=self.verify_ssl,
                     timeout=aiohttp.ClientWSTimeout(ws_close=2),
                     max_msg_size=8 * 1024 * 1024,

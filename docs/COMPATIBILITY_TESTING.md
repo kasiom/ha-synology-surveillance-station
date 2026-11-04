@@ -7,10 +7,10 @@ Station 9.x release, camera vendor, or recording configuration. The integration 
 
 - Use the latest published release.
 - Use a dedicated DSM account with access only to the cameras and recordings under test.
-- Grant Live View on the selected cameras. Verify RTSP where `GetLiveViewPath` is allowed
-  and WebSocket playback of the high-quality entity where it is denied. Verify the stream
-  can reopen after a disconnect. Low-bandwidth MJPEG still requires the path returned by
-  `GetLiveViewPath`.
+- Grant Live View on the selected cameras. Verify RTSP and MJPEG where `GetLiveViewPath`
+  is allowed and WebSocket playback of both profiles where it is denied. Verify the
+  low-bandwidth profile uses the expected resolution and that streams reopen after a
+  disconnect.
 - Remove any old Surveillance Station Action Rule or webhook made for this integration; it is
   neither used nor required.
 - Keep **Verify TLS certificate** enabled only when the NAS certificate is trusted by Home
