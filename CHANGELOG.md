@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Fix WebRTC playback for SD and HD live streams that use Synology's WebSocket fallback.
+  The video is repackaged without re-encoding.
+
 ## 1.1.0
 
 - Authenticate live-view requests with the integration's own Surveillance Station account.

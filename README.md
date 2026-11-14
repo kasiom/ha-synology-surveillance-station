@@ -34,8 +34,9 @@ low-bandwidth source without changing NAS recording settings.
 Live streams use the dedicated account configured in this integration. Give it **Live View**
 permission for the selected cameras. If Surveillance Station denies `GetLiveViewPath` or
 does not return a path for a live profile, the corresponding entity tries Synology's
-WebSocket API on the configured NAS web port. Home Assistant handles HLS playback for
-RTSP and WebSocket sources. The WebSocket fallback carries video only.
+WebSocket API on the configured NAS web port. The WebSocket fallback carries video only.
+It uses Home Assistant's FFmpeg binary to repackage the original video for HLS and go2rtc
+without re-encoding it.
 
 ## Compatibility status
 
@@ -44,11 +45,19 @@ snapshot, and recording endpoints. New event recordings are polled by default, s
 Assistant can consume events when the NAS is intentionally unable to initiate connections
 into the automation network.
 
-Live playback was validated on Home Assistant `2026.10.4`, Surveillance Station `9.3.12139`,
+Live playback was validated on Home Assistant `2026.11.1`, Surveillance Station `9.3.12139`,
 and three HIKVISION cameras. The minimum Home Assistant version is `2026.8.2`.
 Compatibility reports are welcome for other Surveillance Station 9.x installations.
 
+## Install from the Marketplace
+
+1. Open **Settings → Marketplace** and search for **Synology Surveillance Station**.
+2. Open the repository and select **Install**.
+3. Follow any restart prompt, then follow [Set up in Home Assistant](#set-up-in-home-assistant).
+
 ## Install with HACS
+
+For Home Assistant 2026.8.2 through 2026.10:
 
 1. Open **HACS** in Home Assistant and search for **Synology Surveillance Station**.
 2. Open the repository and select **Download**.

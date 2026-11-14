@@ -8,6 +8,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
 
+from homeassistant.components.ffmpeg import get_ffmpeg_manager
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
@@ -130,7 +131,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry)
     else:
         cameras = available_cameras
 
-    runtime = SurveillanceRuntime(api, info, cameras, available_cameras)
+    runtime = SurveillanceRuntime(
+        api, info, cameras, available_cameras, ffmpeg_binary=get_ffmpeg_manager(hass).binary
+    )
     entry.runtime_data = runtime
     hass.data[DOMAIN][entry.entry_id] = runtime
 

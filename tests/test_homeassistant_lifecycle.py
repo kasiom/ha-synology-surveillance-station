@@ -196,6 +196,10 @@ async def test_setup_and_unload_entry_lifecycle(hass) -> None:
             "custom_components.synology_surveillance_station.async_track_time_interval",
             return_value=lambda: None,
         ),
+        patch(
+            "custom_components.synology_surveillance_station.get_ffmpeg_manager",
+            return_value=SimpleNamespace(binary="ffmpeg"),
+        ),
         patch.object(
             hass.config_entries,
             "async_forward_entry_setups",

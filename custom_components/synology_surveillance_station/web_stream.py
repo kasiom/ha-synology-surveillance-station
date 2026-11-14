@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+from contextlib import suppress
 
 import aiohttp
 from aiohttp import web
@@ -13,6 +14,7 @@ from .api import SynologyApiError, SynologyConnectionError, SynologySurveillance
 
 _LOGGER = logging.getLogger(__name__)
 _VIDEO_TIMEOUT = 15
+_MPEG_TS_PACKET_SIZE = 188
 _MP4_INIT_BOXES = {b"ftyp", b"moov"}
 _MP4_BOXES = _MP4_INIT_BOXES | {b"moof", b"styp", b"mdat", b"free", b"sidx", b"emsg"}
 
@@ -40,8 +42,9 @@ def _video_payload(message: bytes) -> tuple[bool, bytes]:
 class SurveillanceWebStream:
     """Serve video on a private, on-demand loopback endpoint."""
 
-    def __init__(self, api: SynologySurveillanceApi) -> None:
+    def __init__(self, api: SynologySurveillanceApi, ffmpeg_binary: str = "ffmpeg") -> None:
         self._api = api
+        self._ffmpeg_binary = ffmpeg_binary
         self._runner: web.AppRunner | None = None
         self._lock = asyncio.Lock()
         self._token = secrets.token_urlsafe(24)
@@ -55,11 +58,9 @@ class SurveillanceWebStream:
                 return None
             if self._runner is None:
                 app = web.Application()
-                app.router.add_get(
-                    f"/{self._token}/{{camera_id:[0-9]+}}/{{profile:[02]}}",
-                    self._async_video,
-                    allow_head=False,
-                )
+                source_path = f"/{self._token}/{{camera_id:[0-9]+}}/{{profile:[02]}}"
+                app.router.add_get(f"{source_path}/live.ts", self._async_mpegts, allow_head=False)
+                app.router.add_get(f"{source_path}/source.mp4", self._async_video, allow_head=False)
                 runner = web.AppRunner(
                     app, access_log=None, handler_cancellation=True, shutdown_timeout=1
                 )
@@ -71,8 +72,12 @@ class SurveillanceWebStream:
                     raise
                 self._runner = runner
             self._sources.add((camera_id, profile))
-            port = self._runner.addresses[0][1]
-            return f"http://127.0.0.1:{port}/{self._token}/{camera_id}/{profile}"
+            return f"{self._source_url(camera_id, profile)}/live.ts"
+
+    def _source_url(self, camera_id: int, profile: int) -> str:
+        assert self._runner is not None
+        port = self._runner.addresses[0][1]
+        return f"http://127.0.0.1:{port}/{self._token}/{camera_id}/{profile}"
 
     async def async_close(self) -> None:
         """Stop serving sources and close active NAS connections on unload."""
@@ -81,6 +86,49 @@ class SurveillanceWebStream:
             if self._runner is not None:
                 await self._runner.cleanup()
                 self._runner = None
+
+    async def _async_mpegts(self, request: web.Request) -> web.StreamResponse:
+        """Remux fragmented MP4 so both the HA stream worker and go2rtc can read it."""
+        camera_id = int(request.match_info["camera_id"])
+        profile = int(request.match_info["profile"])
+        if (camera_id, profile) not in self._sources:
+            return web.Response(status=404)
+        source = f"{self._source_url(camera_id, profile)}/source.mp4"
+        response = web.StreamResponse(
+            headers={"Content-Type": "video/mp2t", "Cache-Control": "no-store"}
+        )
+        process = None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self._ffmpeg_binary,
+                "-nostdin", "-loglevel", "error",
+                "-f", "mp4", "-i", source,
+                "-map", "0:v:0", "-c:v", "copy",
+                "-f", "mpegts", "-flush_packets", "1", "pipe:1",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            assert process.stdout is not None
+            async with asyncio.timeout(_VIDEO_TIMEOUT):
+                first_packet = await process.stdout.readexactly(_MPEG_TS_PACKET_SIZE)
+            await response.prepare(request)
+            await response.write(first_packet)
+            while True:
+                async with asyncio.timeout(_VIDEO_TIMEOUT):
+                    chunk = await process.stdout.read(65536)
+                if not chunk:
+                    break
+                await response.write(chunk)
+        except (EOFError, OSError, TimeoutError) as err:
+            _LOGGER.debug("MPEG-TS stream for camera %s ended (%s)", camera_id, type(err).__name__)
+        finally:
+            if process is not None:
+                if process.returncode is None:
+                    with suppress(ProcessLookupError):
+                        process.kill()
+                # Drain the pipe so a child killed during a slow write can be reaped.
+                await process.communicate()
+        return response if response.prepared else web.Response(status=502)
 
     async def _async_video(self, request: web.Request) -> web.StreamResponse:
         camera_id = int(request.match_info["camera_id"])

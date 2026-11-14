@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock
 
 import aiohttp
 import pytest
@@ -87,14 +88,47 @@ async def test_loopback_stream_reopens_with_new_session_and_mp4_header(nas) -> N
             for profile in (0, 0, 2):
                 source = await bridge.async_source(8, profile)
                 assert source.startswith("http://127.0.0.1:")
-                async with http.get(source) as response:
+                assert source.endswith(f"/8/{profile}/live.ts")
+                async with http.get(source.removesuffix("live.ts") + "source.mp4") as response:
                     assert response.status == 200
                     assert response.content_type == "video/mp4"
                     assert await response.read() == INIT + MEDIA
-            async with http.get(source.removesuffix("/8/2") + "/9/2") as response:
+            async with http.get(source.removesuffix("/8/2/live.ts") + "/9/2/live.ts") as response:
                 assert response.status == 404
             assert logins == logouts == ["session-1", "session-2", "session-3"]
             assert profiles == [None, None, "2"]
         finally:
             await bridge.async_close()
         assert await bridge.async_source(8, 0) is None
+
+
+async def test_live_source_remuxes_video_for_go2rtc(nas, monkeypatch) -> None:
+    """The public source must return MPEG-TS and copy the original video track."""
+    port, _, _, _ = nas
+    packet = b"\x47" + bytes(187)
+    process = AsyncMock()
+    process.stdout.readexactly.return_value = packet
+    process.stdout.read.return_value = b""
+    process.returncode = None
+    process.kill = lambda: None
+    launch = AsyncMock(return_value=process)
+    monkeypatch.setattr(web_stream_module.asyncio, "create_subprocess_exec", launch)
+    async with aiohttp.ClientSession() as http:
+        api = api_module.SynologySurveillanceApi(
+            http, "127.0.0.1", port, "viewer", "example", use_ssl=False, verify_ssl=True
+        )
+        bridge = web_stream_module.SurveillanceWebStream(api, "configured-ffmpeg")
+        try:
+            source = await bridge.async_source(8, 2)
+            async with http.get(source) as response:
+                assert response.status == 200
+                assert response.content_type == "video/mp2t"
+                assert await response.read() == packet
+            args = launch.call_args.args
+            assert args[0] == "configured-ffmpeg"
+            assert args[args.index("-i") + 1] == source.removesuffix("live.ts") + "source.mp4"
+            assert args[args.index("-c:v") + 1] == "copy"
+            assert args[args.index("-f", args.index("-c:v")) + 1] == "mpegts"
+            process.communicate.assert_awaited_once()
+        finally:
+            await bridge.async_close()

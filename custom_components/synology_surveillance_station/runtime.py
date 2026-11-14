@@ -49,9 +49,11 @@ class SurveillanceRuntime:
         info: SurveillanceInfo,
         cameras: tuple[Camera, ...],
         available_cameras: tuple[Camera, ...] | None = None,
+        *,
+        ffmpeg_binary: str = "ffmpeg",
     ) -> None:
         self.api = api
-        self.web_stream = SurveillanceWebStream(api)
+        self.web_stream = SurveillanceWebStream(api, ffmpeg_binary)
         self.info = info
         self.cameras = cameras
         self.available_cameras = available_cameras or cameras
