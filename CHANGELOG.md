@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2
+
+- Retry startup automatically when Surveillance Station refuses API access or is busy.
+- Renew invalid API sessions and close incomplete startup sessions.
+- Include API error codes in connection messages.
+
 ## 1.1.1
 
 - Fix WebRTC playback for SD and HD live streams that use Synology's WebSocket fallback.

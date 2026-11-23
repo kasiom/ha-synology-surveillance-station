@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import UTC, datetime
+
+import pytest
 
 from .helpers import load_module
 
@@ -489,6 +492,118 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             api_module.normalize_host("https://user:pass@nas.local/")
         with self.assertRaises(ValueError):
             api_module.normalize_host("nas.local/webapi")
+
+
+@pytest.mark.parametrize("code", [106, 107, 119])
+@pytest.mark.parametrize("binary", [False, True])
+async def test_session_recovery_is_bounded(code, binary) -> None:
+    """All session errors renew once, then request a delayed reconnect on failure."""
+    failure = {"success": False, "error": {"code": code}}
+    session = FakeSession([
+        FakeResponse(failure, body=json.dumps(failure).encode()),
+        FakeResponse({"success": True, "data": {"sid": "renewed", "synotoken": "fresh"}}),
+        FakeResponse(failure, body=json.dumps(failure).encode()),
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+    )
+    client.apis = {
+        name: api_module.ApiDescriptor(name, "entry.cgi", 1, 9)
+        for name in ("SYNO.API.Auth", "SYNO.SurveillanceStation.Camera")
+    }
+    client.sid = "expired"
+    with pytest.raises(api_module.SynologyConnectionError, match=str(code)):
+        if binary:
+            await client.async_get_snapshot(8)
+        else:
+            await client.async_list_cameras()
+    assert len(session.calls) == 3
+    assert session.calls[2][1]["data"]["_sid"] == "renewed"
+    assert session.calls[2][1]["headers"] == {"X-SYNO-TOKEN": "fresh"}
+
+
+@pytest.mark.parametrize("binary", [False, True])
+async def test_invalid_session_recovers_without_losing_the_request(binary) -> None:
+    """Invalid JSON and image requests continue with the new session and token."""
+    failure = {"success": False, "error": {"code": 119}}
+    jpeg = b"\xff\xd8complete\xff\xd9"
+    response = (
+        FakeResponse({}, headers={"Content-Type": "image/jpeg"}, body=jpeg)
+        if binary
+        else FakeResponse({"success": True, "data": {"cameras": [{"id": 8}]}})
+    )
+    session = FakeSession([
+        FakeResponse(failure, body=json.dumps(failure).encode()),
+        FakeResponse({"success": True, "data": {"sid": "renewed", "synotoken": "fresh"}}),
+        response,
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+    )
+    client.apis = {
+        name: api_module.ApiDescriptor(name, "entry.cgi", 1, 9)
+        for name in ("SYNO.API.Auth", "SYNO.SurveillanceStation.Camera")
+    }
+    client.sid = "expired"
+    if binary:
+        assert await client.async_get_snapshot(8) == (jpeg, "image/jpeg")
+    else:
+        assert (await client.async_list_cameras())[0].camera_id == 8
+    assert len(session.calls) == 3
+
+
+@pytest.mark.parametrize("code", [105, 109, 110, 111, 117, 118, 119, 400])
+async def test_initialization_failure_closes_its_session(code) -> None:
+    """Failed setup retains its error code and leaves no login session behind."""
+    responses = [
+        FakeResponse(DISCOVERY),
+        FakeResponse({"success": True, "data": {"sid": "original"}}),
+        FakeResponse({"success": False, "error": {"code": code}}),
+    ]
+    if code == 119:
+        responses.extend([
+            FakeResponse({"success": True, "data": {"sid": "renewed"}}),
+            FakeResponse({"success": False, "error": {"code": code}}),
+        ])
+    responses.append(FakeResponse({"success": True}))
+    session = FakeSession(responses)
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+    )
+    error_type = api_module.SynologyConnectionError
+    if code == 105:
+        error_type = api_module.SynologyPermissionError
+    if code == 400:
+        error_type = api_module.SynologyAuthError
+    with pytest.raises(error_type, match=str(code)) as error:
+        await client.async_initialize()
+    assert error.value.code == code
+    assert not session.responses
+    assert session.calls[-1][1]["data"]["method"] == "logout"
+    assert client.sid is None
+    assert client.synotoken is None
+    assert sum(call[1]["data"]["method"] == "login" for call in session.calls) == (
+        2 if code == 119 else 1
+    )
+
+
+@pytest.mark.parametrize("code", [106, 107, 109, 110, 111, 117, 118, 119, 400, 401, 402, 407])
+async def test_login_distinguishes_unavailable_nas_from_bad_credentials(code) -> None:
+    """A busy NAS must not ask the user to replace a valid password."""
+    session = FakeSession([
+        FakeResponse(DISCOVERY),
+        FakeResponse({"success": False, "error": {"code": code}}),
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+    )
+    expected = (
+        api_module.SynologyAuthError if code >= 400 else api_module.SynologyConnectionError
+    )
+    with pytest.raises(expected, match=str(code)):
+        await client.async_initialize()
+    assert len(session.calls) == 2
+    assert client.sid is None
 
 
 if __name__ == "__main__":

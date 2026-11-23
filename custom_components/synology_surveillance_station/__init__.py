@@ -104,8 +104,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry)
     except SynologyAuthError as err:
         raise ConfigEntryAuthFailed from err
     except SynologyPermissionError as err:
-        raise ConfigEntryError(
-            "The account cannot access Surveillance Station"
+        # A saved account can be refused temporarily while the NAS is starting.
+        raise ConfigEntryNotReady(
+            f"Surveillance Station refused API access: {err}. "
+            "Check the account's camera permissions if this persists"
         ) from err
     except SynologyUnsupportedError as err:
         raise ConfigEntryError(str(err)) from err

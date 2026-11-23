@@ -24,7 +24,8 @@ from .models import (
     SurveillanceInfo,
 )
 
-_SESSION_ERROR_CODES = {106, 107}
+_SESSION_ERROR_CODES = {106, 107, 119}
+_BUSY_ERROR_CODES = {109, 110, 111, 117, 118}
 _AUTH_ERROR_CODES = {400, 401, 402, 403, 404, 406, 407}
 _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 _STREAM_TIMEOUT = aiohttp.ClientTimeout(
@@ -145,9 +146,13 @@ class SynologySurveillanceApi:
     async def async_initialize(self) -> tuple[SurveillanceInfo, tuple[Camera, ...]]:
         """Discover the API, authenticate, and load the camera inventory."""
         await self.async_discover()
-        await self.async_login()
-        self.info = await self.async_get_info()
-        self.cameras = await self.async_list_cameras()
+        try:
+            await self.async_login()
+            self.info = await self.async_get_info()
+            self.cameras = await self.async_list_cameras()
+        except (SynologyApiError, asyncio.CancelledError):
+            await self.async_logout()
+            raise
         return self.info, self.cameras
 
     async def async_discover(self) -> dict[str, ApiDescriptor]:
@@ -830,8 +835,12 @@ class SynologySurveillanceApi:
             raise SynologyConnectionError("DiskStation returned an invalid JSON object")
         if payload.get("success") is not True and not allow_error_response:
             code = self._error_code(payload)
-            if auth_context or code in _AUTH_ERROR_CODES:
-                raise SynologyAuthError("Surveillance Station authentication failed", code)
+            if code in _AUTH_ERROR_CODES or (
+                auth_context and code not in _SESSION_ERROR_CODES | _BUSY_ERROR_CODES
+            ):
+                raise SynologyAuthError(
+                    f"Surveillance Station authentication failed (API error {code})", code
+                )
             self._raise_api_error("SYNO.API.Info", "query", code)
         return payload
 
@@ -848,8 +857,13 @@ class SynologySurveillanceApi:
 
     @staticmethod
     def _raise_api_error(api_name: str, method: str, code: int | None) -> None:
+        operation = f"{api_name}.{method} (API error {code})"
         if code in _AUTH_ERROR_CODES:
-            raise SynologyAuthError(f"{api_name}.{method} authentication failed", code)
-        if code in {105, 119, 120}:
-            raise SynologyPermissionError(f"{api_name}.{method} is not permitted", code)
-        raise SynologyApiError(f"{api_name}.{method} failed", code)
+            raise SynologyAuthError(f"{operation} authentication failed", code)
+        if code in _SESSION_ERROR_CODES:
+            raise SynologyConnectionError(f"{operation} session is invalid", code)
+        if code in _BUSY_ERROR_CODES:
+            raise SynologyConnectionError(f"{operation} server is busy or unavailable", code)
+        if code in {105, 120}:
+            raise SynologyPermissionError(f"{operation} is not permitted", code)
+        raise SynologyApiError(f"{operation} failed", code)

@@ -17,7 +17,7 @@ from homeassistant.const import (  # noqa: E402
     CONF_USERNAME,
 )
 from homeassistant.data_entry_flow import FlowResultType  # noqa: E402
-from homeassistant.exceptions import ConfigEntryAuthFailed  # noqa: E402
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
 from custom_components.synology_surveillance_station import (  # noqa: E402
@@ -26,6 +26,9 @@ from custom_components.synology_surveillance_station import (  # noqa: E402
 )
 from custom_components.synology_surveillance_station.api import (  # noqa: E402
     SynologyAuthError,
+    SynologyConnectionError,
+    SynologyPermissionError,
+    SynologyUnsupportedError,
 )
 from custom_components.synology_surveillance_station.config_flow import (  # noqa: E402
     SynologySurveillanceConfigFlow,
@@ -239,7 +242,7 @@ async def test_setup_entry_requests_reauthentication(hass) -> None:
     entry.add_to_hass(hass)
     hass.data.setdefault(DOMAIN, {})
     api = _fake_api(
-        initialize_error=SynologyAuthError("expired credentials", 106)
+        initialize_error=SynologyAuthError("invalid credentials", 400)
     )
 
     with (
@@ -252,6 +255,84 @@ async def test_setup_entry_requests_reauthentication(hass) -> None:
         await async_setup_entry(hass, entry)
 
     assert entry.entry_id not in hass.data[DOMAIN]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+@pytest.mark.parametrize("error", [
+    SynologyPermissionError("Camera.List refused (API error 105)", 105),
+    SynologyConnectionError("Camera.List session invalid (API error 119)", 119),
+    SynologyConnectionError("Camera.List server busy (API error 110)", 110),
+])
+async def test_homeassistant_retries_setup_and_recovers(hass, error) -> None:
+    """A rejected setup schedules an HA retry that loads the original config entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=2, unique_id="TESTSERIAL", data=USER_INPUT,
+        options={CONF_POLLING_ENABLED: False},
+    )
+    entry.add_to_hass(hass)
+    hass.data.setdefault(DOMAIN, {})
+    failed_api = _fake_api(initialize_error=error)
+    healthy_api = _fake_api()
+
+    with (
+        patch(
+            "homeassistant.setup.async_process_deps_reqs",
+            AsyncMock(),
+        ),
+        patch(
+            "custom_components.synology_surveillance_station.async_setup",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "custom_components.synology_surveillance_station.SynologySurveillanceApi",
+            side_effect=[failed_api, healthy_api],
+        ) as create_api,
+        patch(
+            "custom_components.synology_surveillance_station.async_track_time_interval",
+            return_value=lambda: None,
+        ),
+        patch(
+            "custom_components.synology_surveillance_station.get_ffmpeg_manager",
+            return_value=SimpleNamespace(binary="ffmpeg"),
+        ),
+        patch.object(hass.config_entries, "async_forward_entry_setups", AsyncMock()),
+        patch.object(hass.config_entries, "async_unload_platforms", AsyncMock(return_value=True)),
+    ):
+        with patch("homeassistant.config_entries.async_call_later") as schedule:
+            assert not await hass.config_entries.async_setup(entry.entry_id)
+
+        assert entry.state is config_entries.ConfigEntryState.SETUP_RETRY
+        assert str(error.code) in entry.reason
+        assert entry.entry_id not in hass.data[DOMAIN]
+        schedule.assert_called_once()
+        assert 5 <= schedule.call_args.args[1] <= 5.5
+        assert not hass.config_entries.flow.async_progress()
+
+        hass.async_run_hass_job(schedule.call_args.args[2], None)
+        await hass.async_block_till_done()
+
+        assert entry.state is config_entries.ConfigEntryState.LOADED
+        assert entry.reason is None
+        assert create_api.call_count == 2
+        assert entry.runtime_data.cameras == (CAMERA,)
+        assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_unsupported_api_remains_a_permanent_setup_error(hass) -> None:
+    """Retries must not hide an API version that cannot support this integration."""
+    entry = MockConfigEntry(domain=DOMAIN, data=USER_INPUT)
+    entry.add_to_hass(hass)
+    api = _fake_api(initialize_error=SynologyUnsupportedError("Missing recording API"))
+    with (
+        patch(
+            "custom_components.synology_surveillance_station.SynologySurveillanceApi",
+            return_value=api,
+        ),
+        pytest.raises(ConfigEntryError, match="Missing recording API") as error,
+    ):
+        await async_setup_entry(hass, entry)
+    assert type(error.value) is ConfigEntryError
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
