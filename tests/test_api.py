@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import unittest
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -604,6 +605,97 @@ async def test_login_distinguishes_unavailable_nas_from_bad_credentials(code) ->
         await client.async_initialize()
     assert len(session.calls) == 2
     assert client.sid is None
+
+
+@pytest.mark.parametrize("names, expected", [
+    ({"name": "Existing", "newName": "Alias"}, "Existing"),
+    ({"newName": "Backyard Camera"}, "Backyard Camera"),
+    ({"name": "", "newName": "Backyard Camera"}, "Backyard Camera"),
+    ({}, "Camera 8"),
+])
+async def test_camera_names_accept_surveillance_station_alias(names, expected) -> None:
+    session = FakeSession([
+        FakeResponse({"success": True, "data": {"cameras": [{"id": 8, **names}]}}),
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True
+    )
+    name = "SYNO.SurveillanceStation.Camera"
+    client.apis = {name: api_module.ApiDescriptor(name, "entry.cgi", 1, 9)}
+    assert (await client.async_list_cameras())[0].name == expected
+
+
+@pytest.mark.parametrize("file_path, zone, expected", [
+    (
+        "20261118PM/Backyard_Camera-20261118-145353-1795031633369-7.mp4",
+        "Europe/Prague", datetime(2026, 11, 18, 13, 53, 53, tzinfo=UTC),
+    ),
+    (
+        "20260718PM/Backyard_Camera-20260718-145353-1795031633369-7.mp4",
+        "Europe/Prague", datetime(2026, 7, 18, 12, 53, 53, tzinfo=UTC),
+    ),
+    (
+        "20261118PM/Backyard_Camera-20261118-145353-1795031633369-7.mp4",
+        "America/New_York", datetime(2026, 11, 18, 19, 53, 53, tzinfo=UTC),
+    ),
+    (
+        "20141030PM/TVIP2155220141030-224911-1414681151.avi",
+        "Europe/Prague", datetime(2014, 10, 30, 21, 49, 11, tzinfo=UTC),
+    ),
+    (
+        r"20261118PM\Backyard_Camera-20261118-145353-1795031633369-7.mp4",
+        "UTC", datetime(2026, 11, 18, 14, 53, 53, tzinfo=UTC),
+    ),
+    ("Camera-20260230-120000-1.mp4", "UTC", None),
+    ("Camera-20261118-256060-1.mp4", "UTC", None),
+    ("Camera-20260329-023000-1.mp4", "Europe/Prague", None),
+    ("Camera-20261025-023000-1.mp4", "Europe/Prague", None),
+    ("20261118-145353/not-a-timestamp.mp4", "UTC", None),
+    (None, "UTC", None),
+])
+async def test_recording_filename_fallback(file_path, zone, expected) -> None:
+    """Reported and legacy filenames use the configured zone, including DST."""
+    session = FakeSession([
+        FakeResponse({"success": True, "data": {"recordings": [
+            {"id": 42, "cameraId": 8, "filePath": file_path},
+        ]}}),
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True,
+        recording_timezone=ZoneInfo(zone),
+    )
+    name = "SYNO.SurveillanceStation.Recording"
+    client.apis = {name: api_module.ApiDescriptor(name, "entry.cgi", 1, 6)}
+    recordings = await client.async_list_recordings(
+        8, datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    assert recordings[0].start_time == expected
+    assert recordings[0].duration_seconds is None
+    assert recordings[0].file_path == file_path
+
+
+@pytest.mark.parametrize("start_field", ["startTime", "start_time"])
+@pytest.mark.parametrize("milliseconds", [False, True])
+async def test_explicit_recording_times_override_the_filename(start_field, milliseconds) -> None:
+    start = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+    scale = 1000 if milliseconds else 1
+    session = FakeSession([
+        FakeResponse({"success": True, "data": {"recordings": [{
+            "id": 42, "cameraId": 8,
+            start_field: int(start.timestamp()) * scale,
+            "stopTime": int(start.timestamp() + 65) * scale,
+            "filePath": "Camera-20261118-145353-1795031633369-7.mp4",
+        }]}}),
+    ])
+    client = api_module.SynologySurveillanceApi(
+        session, "nas.local", 5001, "user", "pass", use_ssl=True, verify_ssl=True,
+        recording_timezone=ZoneInfo("Europe/Prague"),
+    )
+    name = "SYNO.SurveillanceStation.Recording"
+    client.apis = {name: api_module.ApiDescriptor(name, "entry.cgi", 1, 6)}
+    recording = (await client.async_list_recordings(8, start, start))[0]
+    assert recording.start_time == start
+    assert recording.duration_seconds == 65
 
 
 if __name__ == "__main__":

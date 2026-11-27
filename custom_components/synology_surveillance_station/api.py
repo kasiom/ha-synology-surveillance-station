@@ -8,7 +8,7 @@ import re
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -108,6 +108,30 @@ def _first(data: Mapping[str, Any], *names: str) -> Any:
     return None
 
 
+def _recording_time_from_path(file_path: str | None, time_zone: tzinfo) -> datetime | None:
+    """Recover the local start time from modern and legacy Synology filenames."""
+    if not file_path:
+        return None
+    filename = file_path.replace("\\", "/").rsplit("/", 1)[-1]
+    match = re.search(r"(\d{8})-(\d{6})(?:-\d+(?:-\d+)?)?\.[^.]+$", filename)
+    if match is None:
+        return None
+    try:
+        local_time = datetime.strptime("".join(match.groups()), "%Y%m%d%H%M%S").replace(
+            tzinfo=time_zone
+        )
+    except ValueError:
+        return None
+    utc_time = local_time.astimezone(UTC)
+    # A filename cannot disambiguate repeated or nonexistent daylight-saving times.
+    if (
+        utc_time.astimezone(time_zone).replace(tzinfo=None) != local_time.replace(tzinfo=None)
+        or local_time.utcoffset() != local_time.replace(fold=1).utcoffset()
+    ):
+        return None
+    return utc_time
+
+
 class SynologySurveillanceApi:
     """Talk to a single Surveillance Station installation."""
 
@@ -121,6 +145,7 @@ class SynologySurveillanceApi:
         *,
         use_ssl: bool,
         verify_ssl: bool,
+        recording_timezone: tzinfo = UTC,
     ) -> None:
         self._session = session
         self.host = normalize_host(host)
@@ -129,6 +154,7 @@ class SynologySurveillanceApi:
         self._password = password
         self.use_ssl = use_ssl
         self.verify_ssl = verify_ssl
+        self._recording_timezone = recording_timezone
         bracketed = f"[{self.host}]" if ":" in self.host else self.host
         self.base_url = f"{'https' if use_ssl else 'http'}://{bracketed}:{self.port}"
         self.apis: dict[str, ApiDescriptor] = {}
@@ -303,7 +329,7 @@ class SynologySurveillanceApi:
             cameras.append(
                 Camera(
                     camera_id=camera_id,
-                    name=str(raw.get("name") or f"Camera {camera_id}"),
+                    name=str(raw.get("name") or raw.get("newName") or f"Camera {camera_id}"),
                     vendor=str(raw["vendor"]) if raw.get("vendor") else None,
                     model=str(raw["model"]) if raw.get("model") else None,
                     status=_as_int(raw.get("status")),
@@ -513,6 +539,11 @@ class SynologySurveillanceApi:
             raw_camera_id = _as_int(_first(raw, "cameraId", "camId"), camera_id)
             if recording_id is None or raw_camera_id is None:
                 continue
+            file_path = _first(raw, "filePath", "path")
+            file_path = str(file_path) if file_path else None
+            start_time = _as_datetime(_first(raw, "startTime", "start_time"))
+            if start_time is None:
+                start_time = _recording_time_from_path(file_path, self._recording_timezone)
             result.append(
                 Recording(
                     recording_id=recording_id,
@@ -522,7 +553,7 @@ class SynologySurveillanceApi:
                         if _first(raw, "cameraName", "camName")
                         else None
                     ),
-                    start_time=_as_datetime(_first(raw, "startTime", "start_time")),
+                    start_time=start_time,
                     stop_time=_as_datetime(_first(raw, "stopTime", "endTime", "stop_time")),
                     video_codec=_as_int(
                         _first(raw, "videoCodec", "video_codec", "video_type", "codec")
@@ -539,11 +570,7 @@ class SynologySurveillanceApi:
                         )
                     ),
                     reason=_first(raw, "reason", "recordingReason"),
-                    file_path=(
-                        str(_first(raw, "filePath", "path"))
-                        if _first(raw, "filePath", "path")
-                        else None
-                    ),
+                    file_path=file_path,
                     locked=bool(raw.get("locked", False)),
                 )
             )

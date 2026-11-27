@@ -84,6 +84,11 @@ For Home Assistant 2026.8.2 through 2026.10:
 
 ## Recommended use
 
+When the NAS omits recording timestamps, the media browser reads the start time from the
+Synology filename using Home Assistant's configured time zone. The NAS and Home Assistant
+should use the same time zone for this fallback. Duration is shown when the NAS supplies
+both start and end times.
+
 The four primary entities on each camera device have distinct jobs:
 
 - **Camera event** is the automation trigger. Its state is the event timestamp and its

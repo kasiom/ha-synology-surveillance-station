@@ -7,6 +7,7 @@ import logging
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.ffmpeg import get_ffmpeg_manager
 from homeassistant.config_entries import ConfigEntry
@@ -98,6 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SurveillanceConfigEntry)
         entry.data[CONF_PASSWORD],
         use_ssl=entry.data[CONF_USE_SSL],
         verify_ssl=entry.data[CONF_VERIFY_SSL],
+        recording_timezone=ZoneInfo(hass.config.time_zone),
     )
     try:
         info, available_cameras = await api.async_initialize()

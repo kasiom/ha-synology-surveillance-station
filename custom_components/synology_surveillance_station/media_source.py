@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import override
 
 from homeassistant.components.media_player import BrowseError, MediaClass, MediaType
@@ -171,7 +171,10 @@ class SurveillanceMediaSource(MediaSource):
         children: list[BrowseMediaSource] = []
         for recording in sorted(
             recordings,
-            key=lambda value: value.start_time or dt_util.utcnow(),
+            key=lambda value: (
+                value.start_time or datetime.min.replace(tzinfo=UTC),
+                value.recording_id,
+            ),
             reverse=True,
         ):
             if recording.start_time:

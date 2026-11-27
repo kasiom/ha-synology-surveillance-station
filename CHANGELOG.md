@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.3
+
+- Read camera names from Surveillance Station's `newName` field when needed.
+- Recover missing recording dates from Synology filenames using Home Assistant's time
+  zone, and sort recordings consistently with undated recordings last.
+- Keep the Home Assistant test dependencies compatible and prevent conflicting
+  independent updates.
+
 ## 1.1.2
 
 - Retry startup automatically when Surveillance Station refuses API access or is busy.
