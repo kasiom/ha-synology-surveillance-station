@@ -2,8 +2,8 @@
 # Keep this aligned with the exact supported Home Assistant release.
 pytest-homeassistant-custom-component==0.13.357
 # Runtime requirements of Home Assistant 2026.8.2's built-in stream integration.
-PyTurboJPEG==2.6.1
-av==19.0.2
-numpy==2.5.5
+PyTurboJPEG==1.8.3
+av==17.0.1
+# NumPy is pinned transitively by pytest-homeassistant-custom-component.
 # Runtime requirement of Home Assistant 2026.8.2's built-in FFmpeg integration.
 ha-ffmpeg==3.2.2

@@ -6,7 +6,11 @@ updates:
       interval: weekly
     versioning-strategy: increase-if-necessary
     ignore:
+      # Update these together with the minimum Home Assistant test target.
       - dependency-name: pytest-homeassistant-custom-component
+      - dependency-name: PyTurboJPEG
+      - dependency-name: av
+      - dependency-name: ha-ffmpeg
     groups:
       test-dependencies:
         patterns:
