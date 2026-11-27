@@ -650,6 +650,8 @@ async def test_camera_names_accept_surveillance_station_alias(names, expected) -
     ("Camera-20261118-256060-1.mp4", "UTC", None),
     ("Camera-20260329-023000-1.mp4", "Europe/Prague", None),
     ("Camera-20261025-023000-1.mp4", "Europe/Prague", None),
+    ("Camera-00010101-000000-1.mp4", "Europe/Prague", None),
+    ("Camera-99991231-235959-1.mp4", "America/New_York", None),
     ("20261118-145353/not-a-timestamp.mp4", "UTC", None),
     (None, "UTC", None),
 ])

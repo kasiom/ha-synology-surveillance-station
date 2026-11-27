@@ -26,7 +26,7 @@ from .test_api import FakeResponse, FakeSession, api_module  # noqa: E402
 
 async def test_issue8_media_browse_preserves_names_times_order_and_playback(hass) -> None:
     """The real browser shows local dates and retains playable recording identities."""
-    hass.config.set_time_zone("Europe/Prague")
+    await hass.config.async_set_time_zone("Europe/Prague")
     explicit_start = datetime(2026, 11, 18, 12, 0, tzinfo=UTC).timestamp()
     session = FakeSession([
         FakeResponse({"success": True, "data": {"cameras": [

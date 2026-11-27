@@ -120,9 +120,9 @@ def _recording_time_from_path(file_path: str | None, time_zone: tzinfo) -> datet
         local_time = datetime.strptime("".join(match.groups()), "%Y%m%d%H%M%S").replace(
             tzinfo=time_zone
         )
-    except ValueError:
+        utc_time = local_time.astimezone(UTC)
+    except (ValueError, OverflowError):
         return None
-    utc_time = local_time.astimezone(UTC)
     # A filename cannot disambiguate repeated or nonexistent daylight-saving times.
     if (
         utc_time.astimezone(time_zone).replace(tzinfo=None) != local_time.replace(tzinfo=None)
